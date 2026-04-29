@@ -1,0 +1,283 @@
+import { useMemo, useState } from 'react';
+import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import type { CityIndustryShiftShareRow } from '../../data/types';
+import { fmtInt } from '../../lib/format';
+import { divergingPctColor } from '../../lib/colorScales';
+import { DivergingPctLegend } from './treemapLegends';
+
+type Mode = 'local_share' | 'industry_mix';
+
+const PCT_BOUND = 100;
+
+type Leaf = {
+  name: string;
+  size: number;
+  pct: number;
+  workers_2014: number;
+  workers_2024: number;
+  fullName: string;
+  section: string;
+};
+
+type Group = {
+  name: string;
+  children: Leaf[];
+};
+
+const truncateForBox = (s: string, w: number): string => {
+  // Approximate char-fit at the rendered font size; leaves a small buffer.
+  const cap = Math.max(0, Math.floor((w - 8) / 6.2));
+  return s.length <= cap ? s : `${s.slice(0, Math.max(1, cap - 1))}…`;
+};
+
+type Props = {
+  rows: CityIndustryShiftShareRow[];
+  cityId: number;
+  translations?: Map<string, string> | null;
+};
+
+// Treemap of incumbent industries (workers_2014 > 0) grouped by NACE section.
+// Box area is 2014 employment; box color encodes one of the two shift-share
+// contributions expressed as a *percent of base-year workers* — i.e. the
+// fraction of the industry's 2014 workforce gained or lost via that effect.
+// The color scale is hard-capped at ±100% so the diverging hue stays
+// interpretable across cities and modes.
+export default function IndustryTreemap({ rows, cityId, translations }: Props) {
+  const [mode, setMode] = useState<Mode>('local_share');
+
+  const { data, totalWorkers } = useMemo(() => {
+    const cells = rows.filter(
+      (r) => r.city_id === cityId && r.workers_2014 > 0,
+    );
+    if (cells.length === 0) {
+      return { data: [] as Group[], totalWorkers: 0 };
+    }
+
+    let totalWorkers = 0;
+    const bySection = new Map<string, Leaf[]>();
+    for (const c of cells) {
+      const metric = mode === 'local_share' ? c.local_share : c.industry_mix;
+      const pct = c.workers_2014 > 0 ? (metric / c.workers_2014) * 100 : 0;
+      totalWorkers += c.workers_2014;
+      const label = translations?.get(c.LIBELLE_ACTIVITE) ?? c.LIBELLE_ACTIVITE;
+      const arr = bySection.get(c.section) ?? [];
+      arr.push({
+        name: label,
+        fullName: label,
+        size: c.workers_2014,
+        pct,
+        workers_2014: c.workers_2014,
+        workers_2024: c.workers_2024,
+        section: c.section,
+      });
+      bySection.set(c.section, arr);
+    }
+
+    const data: Group[] = [...bySection.entries()]
+      .map(([name, children]) => ({
+        name,
+        children: children.sort((a, b) => b.size - a.size),
+      }))
+      .sort((a, b) => sumSize(b.children) - sumSize(a.children));
+
+    return { data, totalWorkers };
+  }, [rows, cityId, mode, translations]);
+
+  if (data.length === 0) {
+    return <p className="muted">No incumbent industries with 2014 employment for this city.</p>;
+  }
+
+  return (
+    <div>
+      <div className="chart-toolbar">
+        <label className="chart-toolbar-control">
+          Color by
+          <select
+            className="chart-toolbar-select"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as Mode)}
+          >
+            <option value="local_share">Local-share effect</option>
+            <option value="industry_mix">Industry-mix effect</option>
+          </select>
+        </label>
+        <span className="chart-toolbar-hint">
+          Sized by 2014 workers · {fmtInt.format(totalWorkers)} total
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={520}>
+        <Treemap
+          data={data}
+          dataKey="size"
+          stroke="#fff"
+          aspectRatio={4 / 3}
+          isAnimationActive={false}
+          content={<TreemapCell />}
+        >
+          <Tooltip content={<LeafTooltip mode={mode} />} />
+        </Treemap>
+      </ResponsiveContainer>
+      <DivergingPctLegend
+        bound={PCT_BOUND}
+        note={`Share of each industry's 2014 workforce attributed to the ${
+          mode === 'local_share' ? 'local-share' : 'industry-mix'
+        } effect. Color scale capped at ±${PCT_BOUND}%.`}
+      />
+    </div>
+  );
+}
+
+function sumSize(arr: Leaf[]): number {
+  return arr.reduce((s, x) => s + x.size, 0);
+}
+
+// Recharts clones the `content` element and merges in node props (x, y,
+// width, height, depth, name, plus any custom fields on the data leaf) at
+// render time — so this component is invoked without those at the JSX site
+// and they're injected later. The signature reflects that.
+type TreemapNodeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  name?: string;
+  children?: unknown[];
+  pct?: number;
+  workers_2014?: number;
+  workers_2024?: number;
+  section?: string;
+};
+
+function TreemapCell(props: TreemapNodeProps) {
+  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = '' } = props;
+  if (width <= 0 || height <= 0) return null;
+
+  // depth 0 = root (don't render); depth 1 = section (drawn behind leaves);
+  // depth 2 = industry leaf (the actual colored cell).
+  if (depth === 1) {
+    return (
+      <g>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          fill="none"
+          stroke="#1a1a1a"
+          strokeOpacity={0.7}
+          strokeWidth={1.25}
+        />
+        {width > 80 && height > 28 && (
+          <text
+            x={x + 6}
+            y={y + 14}
+            fontFamily="'JetBrains Mono', ui-monospace, monospace"
+            fontSize={10}
+            fontWeight={500}
+            letterSpacing={0.6}
+            fill="#1a1a1a"
+            style={{
+              paintOrder: 'stroke',
+              stroke: '#fff',
+              strokeWidth: 3,
+              strokeLinejoin: 'round',
+              textTransform: 'uppercase',
+            }}
+          >
+            {truncateForBox(name.toUpperCase(), width)}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  if (depth === 2) {
+    const pct = props.pct ?? 0;
+    const fill = divergingPctColor(pct, PCT_BOUND);
+    return (
+      <g>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          fill={fill}
+          stroke="#fff"
+          strokeWidth={0.6}
+        />
+        {width > 70 && height > 22 && (
+          <text
+            x={x + 5}
+            y={y + 14}
+            fontSize={11}
+            fill="#1a1a1a"
+            style={{
+              paintOrder: 'stroke',
+              stroke: '#fff',
+              strokeWidth: 2.5,
+              strokeLinejoin: 'round',
+            }}
+          >
+            {truncateForBox(name, width)}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  return null;
+}
+
+type TipPayload = {
+  payload?: {
+    name?: string;
+    section?: string;
+    pct?: number;
+    workers_2014?: number;
+    workers_2024?: number;
+    children?: unknown[];
+  };
+};
+type TipProps = { active?: boolean; payload?: TipPayload[]; mode: Mode };
+
+function LeafTooltip({ active, payload, mode }: TipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const p = payload[0]?.payload;
+  if (!p || p.children) return null; // section frames have children — skip
+  const w14 = p.workers_2014 ?? 0;
+  const w24 = p.workers_2024 ?? 0;
+  const change = w24 - w14;
+  return (
+    <div className="treemap-tooltip">
+      <div className="treemap-tooltip-name">{p.name}</div>
+      <div className="treemap-tooltip-section">{p.section}</div>
+      <dl className="treemap-tooltip-grid">
+        <dt>Workers 2014</dt>
+        <dd>{fmtInt.format(w14)}</dd>
+        <dt>Workers 2024</dt>
+        <dd>{fmtInt.format(w24)}</dd>
+        <dt>Net change</dt>
+        <dd className={changeClass(change)}>
+          {signed(change)} ({signedPct((change / Math.max(w14, 1)) * 100)})
+        </dd>
+        <dt>{mode === 'local_share' ? 'Local-share effect' : 'Industry-mix effect'}</dt>
+        <dd className={changeClass(p.pct ?? 0)}>{signedPct(p.pct ?? 0)} of 2014 workforce</dd>
+      </dl>
+    </div>
+  );
+}
+
+function signed(n: number): string {
+  if (n === 0) return '0';
+  const sign = n > 0 ? '+' : '−';
+  return `${sign}${fmtInt.format(Math.abs(n))}`;
+}
+function signedPct(p: number): string {
+  if (!Number.isFinite(p)) return '—';
+  const sign = p > 0 ? '+' : p < 0 ? '−' : '';
+  return `${sign}${Math.abs(p).toFixed(0)}%`;
+}
+function changeClass(n: number): string {
+  return n > 0 ? 'pos' : n < 0 ? 'neg' : '';
+}

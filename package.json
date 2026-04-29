@@ -1,0 +1,31 @@
+{
+  "name": "morocco-cities-tool",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Web tool for exploring Moroccan city profiles and spatial equilibrium dynamics (2014-2024).",
+  "scripts": {
+    "prepare-data": "node scripts/copy-data.mjs",
+    "dev": "npm run prepare-data && vite",
+    "build": "npm run prepare-data && tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@types/d3-geo": "^3.1.0",
+    "d3-geo": "^3.1.1",
+    "hyparquet": "^1.7.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.27.0",
+    "recharts": "^2.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
+  }
+}

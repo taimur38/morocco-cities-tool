@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+*.local
+*.tsbuildinfo
+.DS_Store
+
+# Override the root *.html ignore — we need Vite's entry HTML tracked.
+!index.html
+!src/**/*.html

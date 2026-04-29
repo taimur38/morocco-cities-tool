@@ -1,0 +1,54 @@
+# 06-cities-tool — Claude instructions
+
+A small static React webapp that consumes outputs from
+`../04-spatial-equilibrium/` and renders the Morocco cities narrative + per-city
+profile pages. Treat the upstream pipeline as read-only.
+
+## Design Context
+
+### Users
+Growth Lab researchers, economists, and policy readers exploring Morocco's
+spatial economy. They arrive expecting an analytical document, not an app —
+they want to read, scan, and look up cities, not "interact" with a dashboard.
+Audience already comfortable with charts; not a general public tool.
+
+### Brand Personality
+Editorial · Analytical · Restrained.
+Companion to a paper, not a SaaS dashboard. Voice is calm and authored,
+never hype. Confidence comes from clarity of argument and craft of charts,
+not from visual flourish.
+
+### Aesthetic Direction
+- **Editorial / academic-paper** sensibility — close cousin to Our World in
+  Data, FT data work, NYT Upshot, and the printed Growth Lab report
+  framework (`~/dev/gl-design/framework.md`).
+- Light mode only. Off-white page (`#ffffff`) with tinted neutrals
+  (`--bg-alt: #f6f6f4`, borders `#e2e2dd`, ink `#1a1a1a`).
+- Single accent: GL highlight red `#c64646`. Used sparingly — links,
+  highlighted city in scatter, FUA boundary callouts.
+- Typography: Source Sans 3 for body and headings; JetBrains Mono only for
+  formulas. Generous prose width capped at ~920px so reading stays
+  comfortable. No display font.
+- Charts: Recharts + d3-geo, monochrome where possible, accent for highlight.
+  No 3D, no glow, no skeuomorphism.
+
+### Anti-references
+- Modern SaaS dashboards (Linear, Vercel, Stripe analytics) — too dense,
+  too "product."
+- Dark mode with neon accents.
+- Hero metric cards with gradient text.
+- Glassmorphism, drop shadows, rounded "icon-above-heading" sections.
+- Generic Tailwind component-library look.
+
+### Design Principles
+1. **The text is the product.** Charts illustrate the argument; the
+   narrative carries it. Layout choices serve reading, not browsing.
+2. **One accent, used rarely.** Red is for the eye to land on — if
+   everything is red, nothing is.
+3. **Sparing chrome.** No card around every element. Borders, shadows, and
+   rules earn their place.
+4. **Charts read like print figures.** Labels prefer being placed near
+   data, not in legends. National-average reference lines are dashed and
+   muted; the reader's attention belongs on the data.
+5. **Interaction is opt-in.** Default is a static, scannable page. Hover
+   tooltips, drag-zoom, dropdowns are quiet until used.
