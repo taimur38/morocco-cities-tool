@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import type {
   CityIndustryShiftShareRow,
@@ -6,10 +6,20 @@ import type {
 } from '../../data/types';
 import { fmtInt, fmtNum } from '../../lib/format';
 import { sectionColor } from '../../lib/sectionPalette';
-import { complexityColor } from '../../lib/colorScales';
-import { ComplexityLegend, SectionLegend } from './treemapLegends';
+import { complexityColor, divergingPctColor } from '../../lib/colorScales';
+import { ComplexityLegend, SectionLegend, WageLegend } from './treemapLegends';
+import {
+  SectionLabelsOverlay,
+  useSectionBoxes,
+  type RecordBox,
+} from './sectionLabels';
 
-type Mode = 'section' | 'complexity';
+type Mode = 'section' | 'complexity' | 'wage_industry' | 'wage_city';
+
+// Diverging color scale for "% above/below the reference median", clipped at
+// ±this bound. Picked empirically to keep the dominant signal readable while
+// still letting outliers reach the extremes.
+const WAGE_DEV_BOUND = 50;
 
 type Leaf = {
   name: string;
@@ -17,18 +27,18 @@ type Leaf = {
   section: string;
   pci: number | null;
   workers_2024: number;
+  daily_wage_2024: number | null;
+  industry_median_wage: number | null;
+  wage_dev_industry_pct: number | null;
+  wage_dev_city_pct: number | null;
 };
 type Group = { name: string; children: Leaf[] };
-
-const truncateForBox = (s: string, w: number): string => {
-  const cap = Math.max(0, Math.floor((w - 8) / 6.2));
-  return s.length <= cap ? s : `${s.slice(0, Math.max(1, cap - 1))}…`;
-};
 
 type Props = {
   rows: CityIndustryShiftShareRow[];
   complexity: IndustryComplexityRow[] | null;
   cityId: number;
+  cityMedianWage?: number | null;
   translations?: Map<string, string> | null;
 };
 
@@ -40,9 +50,11 @@ export default function SectionOverviewTreemap({
   rows,
   complexity,
   cityId,
+  cityMedianWage = null,
   translations,
 }: Props) {
   const [mode, setMode] = useState<Mode>('section');
+  const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
 
   const { pciByCode, pciScale } = useMemo(() => {
     if (!complexity) return { pciByCode: new Map<string, number>(), pciScale: 0 };
@@ -59,6 +71,28 @@ export default function SectionOverviewTreemap({
     return { pciByCode: m, pciScale: scale };
   }, [complexity]);
 
+  // Industry-level median daily wage, computed across all cities (not just the
+  // current city) so the comparison is "this city vs. the typical city for
+  // this industry." Unweighted: each city counts once per industry.
+  const wageMedianByCode = useMemo(() => {
+    const wagesByCode = new Map<string, number[]>();
+    for (const r of rows) {
+      if (r.workers_2024 > 0 && r.daily_wage_2024 != null && Number.isFinite(r.daily_wage_2024)) {
+        const arr = wagesByCode.get(r.CODE_ACTIVITE_NMA2010) ?? [];
+        arr.push(r.daily_wage_2024);
+        wagesByCode.set(r.CODE_ACTIVITE_NMA2010, arr);
+      }
+    }
+    const out = new Map<string, number>();
+    for (const [code, arr] of wagesByCode) {
+      arr.sort((a, b) => a - b);
+      const n = arr.length;
+      const m = n % 2 === 0 ? (arr[n / 2 - 1] + arr[n / 2]) / 2 : arr[(n - 1) / 2];
+      out.set(code, m);
+    }
+    return out;
+  }, [rows]);
+
   const { data, totalWorkers } = useMemo(() => {
     const cells = rows.filter((r) => r.city_id === cityId && r.workers_2024 > 0);
     if (cells.length === 0) return { data: [] as Group[], totalWorkers: 0 };
@@ -69,6 +103,16 @@ export default function SectionOverviewTreemap({
       totalWorkers += c.workers_2024;
       const label = translations?.get(c.LIBELLE_ACTIVITE) ?? c.LIBELLE_ACTIVITE;
       const pci = pciByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
+      const med = wageMedianByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
+      const wage = c.daily_wage_2024 != null && Number.isFinite(c.daily_wage_2024)
+        ? c.daily_wage_2024
+        : null;
+      const wage_dev_industry_pct =
+        wage != null && med != null && med > 0 ? ((wage - med) / med) * 100 : null;
+      const wage_dev_city_pct =
+        wage != null && cityMedianWage != null && cityMedianWage > 0
+          ? ((wage - cityMedianWage) / cityMedianWage) * 100
+          : null;
       const arr = bySection.get(c.section) ?? [];
       arr.push({
         name: label,
@@ -76,6 +120,10 @@ export default function SectionOverviewTreemap({
         section: c.section,
         pci,
         workers_2024: c.workers_2024,
+        daily_wage_2024: wage,
+        industry_median_wage: med,
+        wage_dev_industry_pct,
+        wage_dev_city_pct,
       });
       bySection.set(c.section, arr);
     }
@@ -88,7 +136,7 @@ export default function SectionOverviewTreemap({
       .sort((a, b) => sumSize(b.children) - sumSize(a.children));
 
     return { data, totalWorkers };
-  }, [rows, cityId, translations, pciByCode]);
+  }, [rows, cityId, translations, pciByCode, wageMedianByCode, cityMedianWage]);
 
   if (data.length === 0) {
     return <p className="muted">No 2024 industry employment for this city.</p>;
@@ -106,28 +154,38 @@ export default function SectionOverviewTreemap({
           >
             <option value="section">Industry section</option>
             <option value="complexity">Industry complexity</option>
+            <option value="wage_industry">Daily wage vs. industry national median</option>
+            <option value="wage_city">Daily wage vs. city median</option>
           </select>
         </label>
         <span className="chart-toolbar-hint">
           Sized by 2024 workers · {fmtInt.format(totalWorkers)} total
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={520}>
-        <Treemap
-          data={data}
-          dataKey="size"
-          stroke="#fff"
-          aspectRatio={4 / 3}
-          isAnimationActive={false}
-          content={<Cell mode={mode} pciScale={pciScale} />}
-        >
-          <Tooltip content={<LeafTooltip />} />
-        </Treemap>
-      </ResponsiveContainer>
-      {mode === 'section' ? (
-        <SectionLegend sections={data.map((g) => g.name)} />
-      ) : (
-        <ComplexityLegend scale={pciScale} />
+      <div style={{ position: 'relative' }}>
+        <ResponsiveContainer width="100%" height={520}>
+          <Treemap
+            data={data}
+            dataKey="size"
+            stroke="#fff"
+            aspectRatio={4 / 3}
+            isAnimationActive={false}
+            content={<Cell mode={mode} pciScale={pciScale} recordBox={recordBox} />}
+          >
+            <Tooltip content={<LeafTooltip />} wrapperStyle={{ zIndex: 10 }} />
+          </Treemap>
+        </ResponsiveContainer>
+        <SectionLabelsOverlay boxes={sectionBoxes} />
+      </div>
+      {mode === 'section' && <SectionLegend sections={data.map((g) => g.name)} />}
+      {mode === 'complexity' && <ComplexityLegend scale={pciScale} />}
+      {mode === 'wage_industry' && <WageLegend bound={WAGE_DEV_BOUND} />}
+      {mode === 'wage_city' && (
+        <WageLegend
+          bound={WAGE_DEV_BOUND}
+          reference="city median"
+          note="Each cell's daily wage compared to the city's median daily wage across all CNSS person-days."
+        />
       )}
     </div>
   );
@@ -147,10 +205,32 @@ type CellProps = {
   section?: string;
   pci?: number | null;
   workers_2024?: number;
+  daily_wage_2024?: number | null;
+  industry_median_wage?: number | null;
+  wage_dev_industry_pct?: number | null;
+  wage_dev_city_pct?: number | null;
+  recordBox?: RecordBox;
 };
 
 function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
-  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = '', mode, pciScale } = props;
+  const {
+    x = 0,
+    y = 0,
+    width = 0,
+    height = 0,
+    depth = 0,
+    name = '',
+    mode,
+    pciScale,
+    recordBox,
+  } = props;
+
+  useEffect(() => {
+    if (depth === 1 && name && recordBox && width > 0 && height > 0) {
+      recordBox(name, { x, y, w: width, h: height });
+    }
+  }, [depth, name, x, y, width, height, recordBox]);
+
   if (width <= 0 || height <= 0) return null;
 
   if (depth === 1) {
@@ -167,35 +247,21 @@ function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
           strokeOpacity={0.85}
           strokeWidth={1.5}
         />
-        {width > 80 && height > 28 && (
-          <text
-            x={x + 6}
-            y={y + 14}
-            fontFamily="'JetBrains Mono', ui-monospace, monospace"
-            fontSize={10}
-            fontWeight={500}
-            letterSpacing={0.6}
-            fill={tone}
-            style={{
-              paintOrder: 'stroke',
-              stroke: '#fff',
-              strokeWidth: 3,
-              strokeLinejoin: 'round',
-              textTransform: 'uppercase',
-            }}
-          >
-            {name.toUpperCase()}
-          </text>
-        )}
       </g>
     );
   }
 
   if (depth === 2) {
-    const fill =
-      mode === 'section'
-        ? sectionColor(props.section)
-        : complexityColor(props.pci ?? null, pciScale);
+    let fill: string;
+    if (mode === 'section') {
+      fill = sectionColor(props.section);
+    } else if (mode === 'complexity') {
+      fill = complexityColor(props.pci ?? null, pciScale);
+    } else {
+      const dev =
+        mode === 'wage_industry' ? props.wage_dev_industry_pct : props.wage_dev_city_pct;
+      fill = dev == null ? '#f6f6f4' : divergingPctColor(dev, WAGE_DEV_BOUND);
+    }
     const fillOpacity = mode === 'section' ? 0.55 : 1;
     return (
       <g>
@@ -206,25 +272,9 @@ function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
           height={height}
           fill={fill}
           fillOpacity={fillOpacity}
-          stroke="#fff"
-          strokeWidth={0.6}
+          stroke={mode === 'section' ? 'none' : '#fff'}
+          strokeWidth={mode === 'section' ? 0 : 0.6}
         />
-        {width > 70 && height > 22 && (
-          <text
-            x={x + 5}
-            y={y + 14}
-            fontSize={11}
-            fill="#1a1a1a"
-            style={{
-              paintOrder: 'stroke',
-              stroke: '#fff',
-              strokeWidth: 2.5,
-              strokeLinejoin: 'round',
-            }}
-          >
-            {truncateForBox(name, width)}
-          </text>
-        )}
       </g>
     );
   }
@@ -238,10 +288,19 @@ type TipPayload = {
     section?: string;
     pci?: number | null;
     workers_2024?: number;
+    daily_wage_2024?: number | null;
+    industry_median_wage?: number | null;
+    wage_dev_industry_pct?: number | null;
+    wage_dev_city_pct?: number | null;
     children?: unknown[];
   };
 };
 type TipProps = { active?: boolean; payload?: TipPayload[] };
+
+function fmtSignedPct(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `${v >= 0 ? '+' : ''}${fmtNum(v, 1)}%`;
+}
 
 function LeafTooltip({ active, payload }: TipProps) {
   if (!active || !payload || payload.length === 0) return null;
@@ -256,6 +315,12 @@ function LeafTooltip({ active, payload }: TipProps) {
         <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
         <dt>Industry complexity (PCI)</dt>
         <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
+        <dt>Daily wage 2024 (MAD)</dt>
+        <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
+        <dt>vs. industry national median</dt>
+        <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
+        <dt>vs. city median</dt>
+        <dd>{fmtSignedPct(p.wage_dev_city_pct)}</dd>
       </dl>
     </div>
   );

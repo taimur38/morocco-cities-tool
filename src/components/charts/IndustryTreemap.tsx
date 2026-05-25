@@ -1,9 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import type { CityIndustryShiftShareRow } from '../../data/types';
 import { fmtInt } from '../../lib/format';
 import { divergingPctColor } from '../../lib/colorScales';
 import { DivergingPctLegend } from './treemapLegends';
+import {
+  SectionLabelsOverlay,
+  useSectionBoxes,
+  type RecordBox,
+} from './sectionLabels';
 
 type Mode = 'local_share' | 'industry_mix';
 
@@ -24,12 +29,6 @@ type Group = {
   children: Leaf[];
 };
 
-const truncateForBox = (s: string, w: number): string => {
-  // Approximate char-fit at the rendered font size; leaves a small buffer.
-  const cap = Math.max(0, Math.floor((w - 8) / 6.2));
-  return s.length <= cap ? s : `${s.slice(0, Math.max(1, cap - 1))}…`;
-};
-
 type Props = {
   rows: CityIndustryShiftShareRow[];
   cityId: number;
@@ -44,6 +43,7 @@ type Props = {
 // interpretable across cities and modes.
 export default function IndustryTreemap({ rows, cityId, translations }: Props) {
   const [mode, setMode] = useState<Mode>('local_share');
+  const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
 
   const { data, totalWorkers } = useMemo(() => {
     const cells = rows.filter(
@@ -105,18 +105,21 @@ export default function IndustryTreemap({ rows, cityId, translations }: Props) {
           Sized by 2014 workers · {fmtInt.format(totalWorkers)} total
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={520}>
-        <Treemap
-          data={data}
-          dataKey="size"
-          stroke="#fff"
-          aspectRatio={4 / 3}
-          isAnimationActive={false}
-          content={<TreemapCell />}
-        >
-          <Tooltip content={<LeafTooltip mode={mode} />} />
-        </Treemap>
-      </ResponsiveContainer>
+      <div style={{ position: 'relative' }}>
+        <ResponsiveContainer width="100%" height={520}>
+          <Treemap
+            data={data}
+            dataKey="size"
+            stroke="#fff"
+            aspectRatio={4 / 3}
+            isAnimationActive={false}
+            content={<TreemapCell recordBox={recordBox} />}
+          >
+            <Tooltip content={<LeafTooltip mode={mode} />} wrapperStyle={{ zIndex: 10 }} />
+          </Treemap>
+        </ResponsiveContainer>
+        <SectionLabelsOverlay boxes={sectionBoxes} />
+      </div>
       <DivergingPctLegend
         bound={PCT_BOUND}
         note={`Share of each industry's 2014 workforce attributed to the ${
@@ -147,14 +150,24 @@ type TreemapNodeProps = {
   workers_2014?: number;
   workers_2024?: number;
   section?: string;
+  recordBox?: RecordBox;
 };
 
 function TreemapCell(props: TreemapNodeProps) {
-  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = '' } = props;
+  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = '', recordBox } = props;
+
+  // Push the section's box up to the parent so the overlay layer can draw the
+  // label on top of all leaves. useEffect fires after Recharts commits this
+  // cell, so the parent re-renders with the correct dimensions even on the
+  // first paint (ResponsiveContainer's initial measure round-trip).
+  useEffect(() => {
+    if (depth === 1 && name && recordBox && width > 0 && height > 0) {
+      recordBox(name, { x, y, w: width, h: height });
+    }
+  }, [depth, name, x, y, width, height, recordBox]);
+
   if (width <= 0 || height <= 0) return null;
 
-  // depth 0 = root (don't render); depth 1 = section (drawn behind leaves);
-  // depth 2 = industry leaf (the actual colored cell).
   if (depth === 1) {
     return (
       <g>
@@ -165,29 +178,8 @@ function TreemapCell(props: TreemapNodeProps) {
           height={height}
           fill="none"
           stroke="#1a1a1a"
-          strokeOpacity={0.7}
-          strokeWidth={1.25}
+          strokeWidth={2}
         />
-        {width > 80 && height > 28 && (
-          <text
-            x={x + 6}
-            y={y + 14}
-            fontFamily="'JetBrains Mono', ui-monospace, monospace"
-            fontSize={10}
-            fontWeight={500}
-            letterSpacing={0.6}
-            fill="#1a1a1a"
-            style={{
-              paintOrder: 'stroke',
-              stroke: '#fff',
-              strokeWidth: 3,
-              strokeLinejoin: 'round',
-              textTransform: 'uppercase',
-            }}
-          >
-            {truncateForBox(name.toUpperCase(), width)}
-          </text>
-        )}
       </g>
     );
   }
@@ -206,22 +198,6 @@ function TreemapCell(props: TreemapNodeProps) {
           stroke="#fff"
           strokeWidth={0.6}
         />
-        {width > 70 && height > 22 && (
-          <text
-            x={x + 5}
-            y={y + 14}
-            fontSize={11}
-            fill="#1a1a1a"
-            style={{
-              paintOrder: 'stroke',
-              stroke: '#fff',
-              strokeWidth: 2.5,
-              strokeLinejoin: 'round',
-            }}
-          >
-            {truncateForBox(name, width)}
-          </text>
-        )}
       </g>
     );
   }

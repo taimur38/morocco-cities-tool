@@ -20,13 +20,13 @@ type Step = {
 };
 
 const TOTAL = '#3a3a3a';
-const POSITIVE = '#3a3a3a';
+const POSITIVE = '#2f7d3a'; // matches the inflow green used in CityMap
 const NEGATIVE = '#c64646';
 
 const colorFor = (kind: Step['kind']) =>
   kind === 'total' ? TOTAL : kind === 'pos' ? POSITIVE : NEGATIVE;
 
-const opacityFor = (kind: Step['kind']) => (kind === 'pos' ? 0.65 : 1);
+const opacityFor = (_: Step['kind']) => 1;
 
 // Decomposes a city's 2014→2024 employment growth into four contributing
 // segments using a stacked-bar waterfall (Recharts' range-bar trick).

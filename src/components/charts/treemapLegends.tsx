@@ -32,6 +32,39 @@ export function DivergingPctLegend({
   );
 }
 
+// Diverging legend for "daily wage vs. some median." The reference label and
+// note vary by mode (industry-national vs. city-internal comparison).
+export function WageLegend({
+  bound,
+  reference = 'industry median',
+  note = "Each cell's daily wage (CNSS total salary ÷ days worked) compared to the median across all cities where that industry appears.",
+}: {
+  bound: number;
+  reference?: string;
+  note?: string;
+}) {
+  const stops = [-1, -0.66, -0.33, 0, 0.33, 0.66, 1];
+  return (
+    <div className="treemap-legend">
+      <div className="treemap-legend-bar">
+        {stops.map((t) => (
+          <div
+            key={t}
+            className="treemap-legend-stop"
+            style={{ background: divergingPctColor(t * bound, bound) }}
+          />
+        ))}
+      </div>
+      <div className="treemap-legend-labels">
+        <span>≤ −{bound}% (lower pay)</span>
+        <span>{reference}</span>
+        <span>≥ +{bound}% (higher pay)</span>
+      </div>
+      <div className="treemap-legend-note">{note}</div>
+    </div>
+  );
+}
+
 // Atlas-gradient (orange → cream → teal) legend for industry complexity.
 // `scale` is the absolute bound that maps to ±1 in `complexityColor`.
 export function ComplexityLegend({ scale }: { scale: number }) {

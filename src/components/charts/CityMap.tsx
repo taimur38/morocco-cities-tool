@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { geoIdentity, geoPath, type GeoPermissibleObjects } from 'd3-geo';
 import {
   useCityGeo,
@@ -7,9 +7,12 @@ import {
   type CityFeature,
 } from '../../data/useCityGeo';
 
+type Variant = 'migration' | 'definition';
+
 type Props = {
   slug: string;
   cityName: string;
+  variant?: Variant;
 };
 
 const POS = '#2f7d3a';
@@ -19,6 +22,10 @@ const BOUNDARY = '#1a1a1a';
 const LAND = '#ececea';
 const LAND_STROKE = '#d6d6d0';
 const OCEAN = '#d6e6f0';
+// Definition-variant fill: a muted rose, derived from the GL accent but
+// desaturated. Distinct from the cool grey of neighboring land without
+// becoming the loudest thing on the page.
+const DEFINITION_FILL = '#d6a8a8';
 
 const WIDTH = 720;
 const HEIGHT = 480;
@@ -93,29 +100,101 @@ function bboxFitObject(b: [number, number, number, number]): GeoPermissibleObjec
   };
 }
 
-export default function CityMap({ slug, cityName }: Props) {
+export default function CityMap({ slug, cityName, variant = 'migration' }: Props) {
   const cityGeo = useCityGeo(slug);
   const baseGeo = useNationalBase();
   const [hover, setHover] = useState<{ x: number; y: number; f: CityFeature } | null>(null);
 
+  // Drag-to-zoom: zoomBbox overrides the default city bbox when set;
+  // dragRect is the in-progress selection in svg pixel coords.
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [zoomBbox, setZoomBbox] = useState<[number, number, number, number] | null>(null);
+  const [dragRect, setDragRect] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+
+  // Reset zoom when the city changes
+  useEffect(() => {
+    setZoomBbox(null);
+    setDragRect(null);
+  }, [slug]);
+
   const projection = useMemo(() => {
     if (!cityGeo.data) return null;
-    const communes = cityGeo.data.features.filter((f) => f.properties.kind === 'commune');
-    const fuaFeats = cityGeo.data.features.filter((f) => f.properties.kind === 'fua');
-    // Prefer FUA bbox when available (gives a steadier extent than tightly-packed
-    // commune polygons); fall back to the union of communes for manual cities.
-    const sourceFeats = fuaFeats.length > 0 ? fuaFeats : communes;
-    const [x0, y0, x1, y1] = bboxOfFeatures(sourceFeats);
-    const w = x1 - x0;
-    const h = y1 - y0;
-    const padded: [number, number, number, number] = [
-      x0 - w * PAD,
-      y0 - h * PAD,
-      x1 + w * PAD,
-      y1 + h * PAD,
-    ];
-    return geoIdentity().reflectY(true).fitSize([WIDTH, HEIGHT], bboxFitObject(padded));
-  }, [cityGeo.data]);
+    let bbox: [number, number, number, number];
+    if (zoomBbox) {
+      bbox = zoomBbox;
+    } else {
+      const communes = cityGeo.data.features.filter((f) => f.properties.kind === 'commune');
+      const fuaFeats = cityGeo.data.features.filter((f) => f.properties.kind === 'fua');
+      // Prefer FUA bbox when available (gives a steadier extent than tightly-packed
+      // commune polygons); fall back to the union of communes for manual cities.
+      const sourceFeats = fuaFeats.length > 0 ? fuaFeats : communes;
+      const [x0, y0, x1, y1] = bboxOfFeatures(sourceFeats);
+      const w = x1 - x0;
+      const h = y1 - y0;
+      bbox = [x0 - w * PAD, y0 - h * PAD, x1 + w * PAD, y1 + h * PAD];
+    }
+    return geoIdentity().reflectY(true).fitSize([WIDTH, HEIGHT], bboxFitObject(bbox));
+  }, [cityGeo.data, zoomBbox]);
+
+  // Convert a client (mouse) coordinate to svg viewBox coordinates
+  function clientToSvg(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const r = svg.getBoundingClientRect();
+    return {
+      x: ((e.clientX - r.left) / r.width) * WIDTH,
+      y: ((e.clientY - r.top) / r.height) * HEIGHT,
+    };
+  }
+
+  // Document-level mouse listeners while dragging — so the user can drag
+  // past the SVG edge without losing the rectangle.
+  const dragging = dragRect !== null;
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const p = clientToSvg(e);
+      if (!p) return;
+      setDragRect((d) => (d ? { ...d, x1: p.x, y1: p.y } : null));
+    };
+    const onUp = (e: MouseEvent) => {
+      setDragRect((d) => {
+        if (!d || !projection) return null;
+        const p = clientToSvg(e) ?? { x: d.x1, y: d.y1 };
+        const dx = Math.abs(p.x - d.x0);
+        const dy = Math.abs(p.y - d.y0);
+        // Ignore tiny rectangles (treat as a click, not a zoom)
+        if (dx < 8 || dy < 8) return null;
+        const invert = (projection as unknown as { invert: (xy: [number, number]) => [number, number] | null }).invert;
+        const a = invert([Math.min(d.x0, p.x), Math.min(d.y0, p.y)]);
+        const b = invert([Math.max(d.x0, p.x), Math.max(d.y0, p.y)]);
+        if (a && b) {
+          setZoomBbox([
+            Math.min(a[0], b[0]),
+            Math.min(a[1], b[1]),
+            Math.max(a[0], b[0]),
+            Math.max(a[1], b[1]),
+          ]);
+        }
+        return null;
+      });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, [dragging, projection]);
+
+  const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return; // left-click only
+    const p = clientToSvg(e);
+    if (!p) return;
+    setHover(null);
+    setDragRect({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    e.preventDefault();
+  };
 
   const pathFn = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
 
@@ -181,6 +260,7 @@ export default function CityMap({ slug, cityName }: Props) {
   return (
     <div className="city-map">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         preserveAspectRatio="xMidYMid meet"
         style={{
@@ -189,9 +269,15 @@ export default function CityMap({ slug, cityName }: Props) {
           width: '100%',
           height: 'auto',
           aspectRatio: `${WIDTH} / ${HEIGHT}`,
+          cursor: 'crosshair',
         }}
         role="img"
-        aria-label={`Map of communes in ${cityName} colored by net migration`}
+        aria-label={
+          variant === 'migration'
+            ? `Map of communes in ${cityName} colored by net migration`
+            : `Map showing the communes that make up ${cityName}'s functional urban area`
+        }
+        onMouseDown={handleSvgMouseDown}
       >
         {/* Layer 1 — national base, drawn in light grey (land) */}
         <g>
@@ -212,10 +298,15 @@ export default function CityMap({ slug, cityName }: Props) {
             <path
               key={f.properties.commune_id ?? Math.random()}
               d={pathFn(f) ?? ''}
-              fill={colorForMig(f.properties.mig_10yr_net_pct, negBound, posBound)}
+              fill={
+                variant === 'migration'
+                  ? colorForMig(f.properties.mig_10yr_net_pct, negBound, posBound)
+                  : DEFINITION_FILL
+              }
               stroke="#fff"
               strokeWidth={0.6}
               onMouseMove={(e) => {
+                if (dragging) return; // suppress hover while drawing zoom rectangle
                 const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
                 setHover({
                   x: e.clientX - rect.left,
@@ -263,26 +354,84 @@ export default function CityMap({ slug, cityName }: Props) {
             </text>
           ))}
         </g>
+
+        {/* Layer 5 — drag-to-zoom rectangle */}
+        {dragRect && (
+          <rect
+            x={Math.min(dragRect.x0, dragRect.x1)}
+            y={Math.min(dragRect.y0, dragRect.y1)}
+            width={Math.abs(dragRect.x1 - dragRect.x0)}
+            height={Math.abs(dragRect.y1 - dragRect.y0)}
+            fill="rgba(26, 26, 26, 0.06)"
+            stroke="#1a1a1a"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+            pointerEvents="none"
+          />
+        )}
       </svg>
 
-      {hover && (
+      {hover && !dragging && (
         <div className="map-tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
           <strong>{hover.f.properties.commune_name ?? '—'}</strong>
-          <div>
-            Net migration:{' '}
-            {hover.f.properties.mig_10yr_net_pct != null
-              ? `${hover.f.properties.mig_10yr_net_pct.toFixed(1)}%`
-              : '—'}
-          </div>
+          {variant === 'migration' && (
+            <div>
+              Net migration:{' '}
+              {hover.f.properties.mig_10yr_net_pct != null
+                ? `${hover.f.properties.mig_10yr_net_pct.toFixed(1)}%`
+                : '—'}
+            </div>
+          )}
         </div>
       )}
 
-      <MapLegend negBound={negBound} posBound={posBound} />
+      {zoomBbox && (
+        <button
+          type="button"
+          className="map-reset-zoom"
+          onClick={() => setZoomBbox(null)}
+        >
+          Reset zoom
+        </button>
+      )}
+
+      <MapLegend
+        variant={variant}
+        communeCount={cityCommunes.length}
+        negBound={negBound}
+        posBound={posBound}
+        zoomed={zoomBbox != null}
+      />
     </div>
   );
 }
 
-function MapLegend({ negBound, posBound }: { negBound: number; posBound: number }) {
+function MapLegend({
+  variant,
+  communeCount,
+  negBound,
+  posBound,
+  zoomed,
+}: {
+  variant: Variant;
+  communeCount: number;
+  negBound: number;
+  posBound: number;
+  zoomed: boolean;
+}) {
+  if (variant === 'definition') {
+    return (
+      <div className="map-legend">
+        <div className="map-legend-note">
+          {communeCount} commune{communeCount === 1 ? '' : 's'} make up this city ·
+          Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary
+        </div>
+        <div className="map-legend-note">
+          {zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area'}
+        </div>
+      </div>
+    );
+  }
   // Two scales joined at the zero point. The bar is a single CSS gradient so
   // the transition reads as one seamless ramp; the zero label is absolutely
   // positioned at the proportional zero point rather than always centered.
@@ -312,6 +461,9 @@ function MapLegend({ negBound, posBound }: { negBound: number; posBound: number 
       </div>
       <div className="map-legend-note">
         Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary
+      </div>
+      <div className="map-legend-note">
+        {zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area'}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   useCityPanel,
@@ -19,9 +19,12 @@ import CityMap from '../components/charts/CityMap';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
 
+type WageStat = 'median' | 'mean';
+
 export default function CityProfile() {
   const { citySlug: slug = '' } = useParams();
   const panel = useCityPanel();
+  const [wageStat, setWageStat] = useState<WageStat>('median');
   const complexity = useCityComplexity();
   const ss = useCityShiftShare();
   const ssIndustry = useCityIndustryShiftShare();
@@ -49,6 +52,9 @@ export default function CityProfile() {
   }
 
   const cityShiftShare = ss.data?.find((r) => r.city_id === city.id) ?? null;
+  const cityMedianWage =
+    panel.data.find((r) => r.city_id === city.id && r.year === 2024)
+      ?.cnss_median_daily_wage ?? null;
 
   return (
     <article>
@@ -61,9 +67,18 @@ export default function CityProfile() {
         <CitySelect rows={panel.data} current={slug} />
       </div>
 
+      <div className="chart-block">
+        <h4>What we mean by {city.name}</h4>
+        <p className="chart-caption">
+          The functional urban area (dashed boundary) and the communes inside it.
+          Together they form the city's labor market for the rest of this page.
+        </p>
+        <CityMap slug={slug} cityName={city.name} variant="definition" />
+      </div>
+
       <p className="muted">
-        FUA-defined city. Compare on levels (where this city stands today) and changes (how it
-        moved between 2014 and 2024).
+        The rest of the page compares {city.name} on levels (where it stands today) and changes
+        (how it moved between 2014 and 2024).
       </p>
 
       {/* SECTION 1 — LEVELS */}
@@ -79,14 +94,16 @@ export default function CityProfile() {
         <h4>What {city.name} does for a living</h4>
         <p className="chart-caption">
           The city's 2024 industrial composition. Each rectangle is one CNSS industry, sized by
-          workers, grouped by NACE section. Toggle the color to view sectional kind or
-          industry-level economic complexity (PCI from the national product space).
+          workers, grouped by NACE section. Toggle the color to view sectional kind,
+          industry-level economic complexity (PCI from the national product space), or how this
+          city's daily wage in each industry compares to the cross-city median for that industry.
         </p>
         {ssIndustry.data && (
           <SectionOverviewTreemap
             rows={ssIndustry.data}
             complexity={industryComplexity.data}
             cityId={city.id}
+            cityMedianWage={cityMedianWage}
             translations={translations.data}
           />
         )}
@@ -110,11 +127,30 @@ export default function CityProfile() {
       </div>
 
       <div className="chart-block">
+        <div className="chart-toolbar">
+          <label className="chart-toolbar-control">
+            Wage statistic:
+            <select
+              className="chart-toolbar-select"
+              value={wageStat}
+              onChange={(e) => setWageStat(e.target.value as WageStat)}
+            >
+              <option value="median">Median</option>
+              <option value="mean">Mean</option>
+            </select>
+          </label>
+        </div>
         <h4>Position in the migration vs. wages map</h4>
         <p className="chart-caption">
-          Each point is one city. {city.name} is highlighted in red.
+          Each point is one city. {city.name} is highlighted in red. The Y axis shows the
+          CAGR of the {wageStat} CNSS daily wage; toggle between median (more robust to
+          outlier industries) and mean.
         </p>
-        <MigrationVsWageScatter rows={panel.data} highlightCityId={city.id} />
+        <MigrationVsWageScatter
+          rows={panel.data}
+          highlightCityId={city.id}
+          wageStat={wageStat}
+        />
       </div>
 
       <h4>What's driven the change in formal employment?</h4>
@@ -167,14 +203,16 @@ export default function CityProfile() {
           <div className="chart-block">
             <h4>New industries since 2014</h4>
             <p className="chart-caption">
-              Industries with zero CNSS workers in 2014 that show up by 2024 — colored by their
-              NACE section so the eye can see where new activity is concentrated. These contribute
-              entirely to the entry-effect bar in the waterfall above.
+              Industries with zero CNSS workers in 2014 that show up by 2024. Toggle the color
+              to view by NACE section, by daily wage relative to the industry's national median,
+              or by daily wage relative to the city's median. These contribute entirely to the
+              entry-effect bar in the waterfall above.
             </p>
             {ssIndustry.data && (
               <NewIndustriesTreemap
                 rows={ssIndustry.data}
                 cityId={city.id}
+                cityMedianWage={cityMedianWage}
                 translations={translations.data}
               />
             )}
