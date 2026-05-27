@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useCityPanel } from '../data/usePanel';
 import CityPicker from '../components/CityPicker';
+import CityLink from '../components/CityLink';
+import CityMap from '../components/charts/CityMap';
 import MigrationBars from '../components/charts/MigrationBars';
 import WageBars from '../components/charts/WageBars';
 import MigrationVsWageScatter from '../components/charts/MigrationVsWageScatter';
@@ -15,15 +17,76 @@ export default function Home() {
 
   return (
     <article>
-      <h2>How are Morocco's cities doing?</h2>
+      <h2>Morocco's cities over the past decade</h2>
       <p>
-        We want to examine the performance of cities in Morocco — but to do that we first need to
-        say what a city <em>is</em>. We treat cities as <strong>local labor markets</strong>: the
-        commuting catchments inside which workers and firms actually meet. We use <strong>Functional
-        Urban Areas</strong> from the Global Human Settlement Layer (GHSL) to aggregate communes
-        into 63 cities. A city is the set of communes that intersect a single FUA, plus three
-        manually-added southern centers (Laayoune, Es-Semara, Tan Tan).
+        Cities matter for Morocco's economy. In 2019, cities were
+        estimated to generate 75% of national GDP, 80% of total tax
+        receipts and 60% of total employment (Lall et al. 2019).
+        Assessing the performance of Morocco's cities can therefore
+        yield critical insights into Morocco's aggregate growth
+        performance, as it will reveal which cities are succeeding and
+        which are failing. It will also help generate strong
+        hypotheses as to what is constraining their growth.
       </p>
+      <p>
+        To make progress on this topic, it is necessary to define
+        (1) the definitions and boundaries of a city, and (2) a
+        framework to assess economic performance at the subnational
+        level. In thinking about the economic growth of cities, it is
+        useful to consider a city as an integrated labor market
+        rather than at the administratively defined boundary. To
+        identify the sets of communes that group together into a
+        labor market and form a city, this article makes use of the
+        Functional Urban Area definitions from the Global Human
+        Settlement Layer (2019). It then introduces a framework which
+        leverages the concept of spatial equilibrium, tailored to
+        Morocco's specific context, to evaluate their relative
+        performance over the past 10 years. Finally, a city dashboard
+        allows readers to investigate the evolution of their own city
+        over the past decade, and form hypotheses as to whether city
+        growth is more constrained by labor demand or labor supply.
+      </p>
+
+      <h3>What is a city?</h3>
+      <p>
+        For the purpose of economic analysis, we evaluate a city as
+        a labor market. This definition is in tension with the
+        administrative definition of the city, but it captures the
+        fact that workers and consumers are constantly crossing
+        administrative boundaries in the course of living their
+        lives, which includes going to work, shopping, or seeking
+        services. The Functional Urban Area (FUA) framework
+        developed by the Global Human Settlement Layer uses a
+        geospatial model which estimates the boundaries of a city
+        based on fine-grained population density data and commuting
+        patterns in example cities (see{' '}
+        <a
+          href="https://human-settlement.emergency.copernicus.eu/ghs_fua.php"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GHSL documentation
+        </a>
+        ). We apply this framework in order to have a consistent
+        process for defining the boundary of a city in Morocco, and
+        aggregate administrative data for communes intersecting with
+        this boundary to form the unit of analysis for our study. As
+        an example, <CityLink name="Casablanca" /> is visualized
+        below: the dashed
+        boundary comes from the GHSL definition, and the labelled
+        communes are those that our process then aggregates to form
+        definitions for each city. Each city's boundaries can be
+        seen on its respective city profile page.
+      </p>
+      <div className="chart-block">
+        <h4>The Casablanca functional urban area</h4>
+        <p className="chart-caption">
+          Dashed line: GHSL functional area. Shaded polygons: the
+          constituent communes our analysis aggregates into a single
+          city.
+        </p>
+        <CityMap slug="casablanca" cityName="Casablanca" variant="definition" />
+      </div>
 
       {loading && <p className="loading">Loading panel data…</p>}
       {error && <p className="error">Could not load panel: {error.message}</p>}
@@ -32,30 +95,113 @@ export default function Home() {
         <>
           <h3>Migration: people vote with their feet</h3>
           <p>
-            Once we have cities, the question is how each one is performing. The most direct
-            signal is migration. If a place is succeeding, people move there. If it's failing,
-            they leave. Below are the biggest gainers and losers in net internal migration over
-            the last decade, expressed as a percent of the sedentary population (the people who
-            were already there).
+            One key difference between economic growth at the country
+            level and at the subnational level is that people are
+            more free to move across borders. It is easier for
+            someone to move from <CityLink name="Oujda" /> to{' '}
+            <CityLink name="Tangier" /> than it may be to move to
+            the United States. Therefore, if Tangier experiences a
+            positive economic shock relative to the rest of the
+            country, it is likely to motivate a much stronger
+            migration response than growth at the national level
+            would draw from its neighbouring countries. This allows
+            us to use net
+            migration as a key indicator of the success or failure of
+            a city in providing a good life for its people. People
+            vote with their feet: if people are on net leaving, it is
+            a strong signal that the city is not meeting the needs of
+            its people, and if people are arriving in droves, the
+            city might be getting something right. The graph below
+            shows the top 10 gainers and bottom 10 losers among
+            Morocco's functional urban areas.
           </p>
           <div className="chart-block">
             <h4>Net internal migration, 2014–2024</h4>
             <p className="chart-caption">
-              Top 10 gainers and bottom 10 losers among Morocco's 63 functional urban areas.
+              Top 10 gainers and bottom 10 losers among Morocco's 66
+              functional urban areas. Expressed as a percent of the
+              sedentary population (the people already there in 2014).
             </p>
             <MigrationBars rows={data} />
           </div>
-
-          <h3>What's driving the moves? Jobs and wages</h3>
           <p>
-            One natural explanation for these migration patterns is the labor market. Maybe
-            people move to Tangier because that's where the good jobs are. To check, we look
-            at how formal-sector wages have grown across cities, using the CNSS (social
-            security) microdata. A high wage CAGR tells us a city's pay envelope is
-            expanding. The toggle below switches between the median and mean daily wage —
-            median is more robust to a handful of outlier industries (e.g. phosphates in
-            Ben Guerir) and is the default; the same choice applies to every wage chart
-            on this page.
+            Of the big cities, <CityLink name="Tangier" /> is
+            extremely fast growing, followed by{' '}
+            <CityLink name="Marrakesh" />, <CityLink name="Fez" /> and{' '}
+            <CityLink name="Agadir" />. Cities in the southern
+            provinces like <CityLink name="Dakhla" /> and{' '}
+            <CityLink name="Boujdour" /> also make the top ten.{' '}
+            <CityLink name="Ain el Aouda" />,{' '}
+            <CityLink name="Deroua" /> and{' '}
+            <CityLink name="Berrechid" /> have all been rapidly
+            growing on the outskirts of <CityLink name="Rabat" /> and{' '}
+            <CityLink name="Casablanca" />, signaling that there may
+            be limiting factors to growth at the core of those major
+            cities.
+          </p>
+          <p>
+            A closer look at the migration patterns within the
+            communes considered as part of{' '}
+            <CityLink name="Casablanca" /> and <CityLink name="Rabat" />{' '}
+            under the FUA definition confirms this picture: growth in
+            the central communes has been low while the surrounding
+            areas have been growing rapidly. One hypothesis is that
+            the cost of living at the center of the city has been
+            increasing significantly relative to the periphery, as
+            housing growth and improvements in transportation have
+            made it increasingly viable to live further away. Still,
+            under the FUA definitions, both Casablanca and Rabat have
+            on the whole been growing through net migration, despite
+            outflows in the city center.
+            <sup className="footnote-marker">†</sup>
+          </p>
+          <div className="chart-block">
+            <h4>Net migration within the Casablanca area, 2014–2024</h4>
+            <p className="chart-caption">
+              Communes shaded by net internal migration. Green: net
+              inflow. Red: net outflow. Dashed line: FUA boundary.
+            </p>
+            <CityMap slug="casablanca" cityName="Casablanca" />
+          </div>
+          <div className="chart-block">
+            <h4>Net migration within the Rabat area, 2014–2024</h4>
+            <p className="chart-caption">
+              Communes shaded by net internal migration. Green: net
+              inflow. Red: net outflow. Dashed line: FUA boundary.
+            </p>
+            <CityMap slug="rabat" cityName="Rabat" />
+          </div>
+          <p className="footnote">
+            <sup>†</sup> Lall et al. (2019) observed a similar pattern
+            in the previous decade: the central commune was shrinking
+            while the wider region grew. Karibi, Kharmich and El
+            Harrouni (2024) report negative growth rates for the
+            cities of <CityLink name="Rabat" /> and{' '}
+            <CityLink name="Casablanca" /> and conclude that the two
+            largest cities are shrinking outright. Both readings use
+            the historic commune as the boundary of the city, which
+            in both cases corresponds to an inner urban core inside a
+            much larger functional area. The FUA aggregation used
+            here picks up the redistribution from core to periphery
+            without reading it as shrinkage.
+          </p>
+
+          <h3>The forces driving migration patterns</h3>
+          <p>
+            What drives the variation in migration patterns across
+            cities? If we view cities within a country as labor
+            markets that are constantly interacting with one another,
+            then migration can be seen as an outcome of relative
+            shifts in labor demand and labor supply across cities. A
+            (relative) increase in labor demand should show up in
+            rising wages and higher than average net in-migration,
+            whereas (relative) decreases in labor demand should
+            result in falling wages and lower than average net
+            migration. The graph below visualizes wage growth in the
+            10 fastest and slowest growing cities using Caisse
+            Nationale de Sécurité Sociale (CNSS) data, which gives
+            us a window into wages in the formal sector of the
+            city's economy.
           </p>
           <div className="chart-block">
             <div className="chart-toolbar">
@@ -73,52 +219,74 @@ export default function Home() {
             </div>
             <h4>Wage growth in the formal sector, 2014–2024</h4>
             <p className="chart-caption">
-              CAGR of {wageStat} daily wage among CNSS-registered workers. Top 10 gainers
-              and bottom 10 losers.
+              CAGR of {wageStat} daily wage among CNSS-registered
+              workers. Top 10 gainers and bottom 10 losers. The
+              toggle above switches between median (default, more
+              robust to a handful of outlier industries) and mean;
+              the same choice applies to every wage chart on this
+              page.
             </p>
             <WageBars rows={data} wageStat={wageStat} />
           </div>
 
-          <h3>Putting the two changes together</h3>
           <p>
-            The bars above tell each story separately — migration on its own, wage growth on its
-            own. Plotting one against the other lines them up and exposes the spatial-equilibrium
-            logic. If labor demand is rising in a city, we'd expect both to move up: wages grow
-            faster than the country and people show up. If demand is contracting, both fall. The
-            interesting cases sit in the off-diagonals — wages growing but people leaving (supply
-            outpacing demand, or non-wage drivers), or people arriving despite slow wage growth.
-            The dashed lines mark the national norms: average city net migration over the decade
-            and the CAGR of the aggregate national daily wage.
+            Plotting wage growth together with net migration patterns
+            allows us to generate hypotheses as to what has been
+            driving city growth or decline over the past decade. The
+            scatter graph below is divided evenly into quadrants by
+            the dashed lines at their respective averages. As
+            described above, cities in the top right quadrant (those
+            experiencing higher than average net migration and
+            faster than average growing wages) are likely to be
+            experiencing a positive labor demand shock, while those
+            in the bottom-left quadrant are likely to be experiencing
+            a negative labor demand shock.
           </p>
           <div className="chart-block">
             <h4>Net migration vs. wage growth</h4>
             <p className="chart-caption">
-              Each point is one city. Hover for details; the cities furthest from the national
-              average on either axis are labeled.
+              Each point is one city. Hover for details; the cities
+              furthest from the national average on either axis are
+              labeled.
             </p>
             <MigrationVsWageScatter rows={data} wageStat={wageStat} />
           </div>
 
-          <h3>But the wage isn't the whole story</h3>
           <p>
-            People don't move for wages alone — they move for what those wages buy them, and
-            for the chance of getting a job in the first place. The first piece is{' '}
-            <strong>cost of living</strong>: a 20% wage premium is hollow if rent and food
-            cost 25% more. Reliable city-level price data for Morocco isn't available, so
-            this stays in the background of every comparison below — but it is the natural
-            next variable.
+            The off-diagonal cases suggest that people are not
+            migrating solely as a result of changing wage conditions
+            between cities. Differences in cost of living determine
+            how much your wage can actually purchase, and housing
+            costs are typically an important source of variation
+            since housing is a significant cost and is non-tradable.
+            Cities in the bottom right quadrant may be inducing
+            in-migration driven more by a decreasing cost of living
+            relative to other cities, such that the real wage (wages
+            adjusted for local purchasing power) is rising.
+            Alternatively, cities in the top left may be facing
+            rising relative costs of living, forcing businesses to
+            pay higher wages to try to retain workers. Unfortunately,
+            at this time we do not have access to reliable city-level
+            cost of living data, so this dimension remains largely
+            hidden in our analysis.
           </p>
           <p>
-            The second is the <strong>probability of finding work</strong>. Unemployment in
-            Morocco is high and varies sharply across cities — far more so than in
-            comparator countries — so the wage you'd actually earn is the posted wage
-            discounted by your odds of being hired. The cities cluster between roughly 8%
-            and 25% unemployment, with the two extremes a near-doubling apart:
+            An additional factor relevant in Morocco is the
+            probability of finding work in a city. Unemployment in
+            Morocco is high, and varies significantly across cities,
+            far more so than in some peer countries. Unemployment in{' '}
+            <CityLink name="Casablanca" /> stood at 18% in 2024,
+            while in <CityLink name="Oujda" /> it was reported at
+            31%. Therefore, workers may discount the average wage in
+            a city by the probability of achieving that wage, in a
+            dynamic similar to what is expressed in Harris and
+            Todaro's (1970) model for rural-to-urban migration.
           </p>
           <UnemploymentDensity rows={data} />
           <p>
-            One compact way to hold these together is to imagine people choosing the city
-            that maximizes a utility roughly of the form
+            One way to hold these ideas together is to imagine
+            people are choosing a city that maximizes their utility,
+            which roughly takes the form:
           </p>
           <p className="formula">
             U ={' '}
@@ -129,42 +297,99 @@ export default function Home() {
             × Pr(employed)
           </p>
           <p>
-            <strong>Spatial equilibrium</strong> is the idea that utility tends to
-            equalize across places. If any city were offering a systematically higher U
-            than the rest, workers would move there until something gave way — wages
-            fell, cost of living rose, or unemployment climbed — and the gap closed.
-            There are no free lunches in space.
+            This gives us a simplified model that can capture enough
+            of the variation to be useful in explaining the
+            performance of Morocco's cities.
+            <sup className="footnote-marker">‡</sup> It can be
+            further extended with concepts like amenities
+            (non-monetary factors that adjust the attractiveness of a
+            city, like crime, temperature, access to beaches, parks,
+            and more), as in the Rosen–Roback framework (Rosen 1979;
+            Roback 1982). Our specification also does not explicitly
+            model interactions with the informal economy, which is
+            significant in Morocco. At the same time, it remains
+            useful to illustrate the major forces shaping the growth
+            dynamic.
           </p>
           <p>
-            If utility is equalized across cities, how should we read the labor-market
-            outcomes we observe? A high wage could be offset by a higher cost of living —
-            real wages would then tend to be similar across space. A high wage could
-            equally be offset by a lower probability of employment, as workers arrive in
-            hopes of capturing the wage and bid down their chances of landing it. In that
-            view, rising unemployment can sometimes be a symptom of relative success
-            rather than failure. Combining these indicators with net migration — whether
-            people are voting with their feet to abandon or move into the city — helps
-            disambiguate which is which. Tetouan, for example, has seen significant net
-            migration alongside a significant rise in unemployment. Should we read its
-            rising unemployment as a symptom of relative success?
+            The concept of <strong>spatial equilibrium</strong>{' '}
+            captures the idea that utility tends to equalize across
+            places. If any city were to offer a systematically
+            higher wage, workers would move there until one of the
+            other variables adjusted, whether through an increased
+            cost of living, as more workers bid for the same housing
+            stock, or increasing unemployment as prospective workers
+            arrive at the city and are unable to find work
+            (Glaeser 2008).
+          </p>
+          <p>
+            This framing then changes how we read the labor-market
+            outcomes we observe. A high wage could be offset by a
+            higher cost of living, in which case real wages would
+            tend to be similar across space. A high wage could
+            equally be offset by a lower probability of employment,
+            as workers arrive in hopes of capturing the wage and bid
+            down their chances of landing it. From this perspective,
+            rising unemployment can sometimes be a symptom of
+            relative success rather than failure. Combining these
+            indicators with net migration helps disambiguate the two
+            stories. <CityLink name="Tetouan" />, for example, has
+            seen significant net migration alongside a significant
+            rise in unemployment. Should we read its rising
+            unemployment as a symptom of relative success?
           </p>
           <div className="chart-block">
             <h4>Net migration vs labor-market outcomes</h4>
             <p className="chart-caption">
-              Each point is one city. The Y axis defaults to the 2014–2024 change in the
-              unemployment rate (percentage points); use the dropdown to switch to wage
-              CAGR. Dashed lines mark the national norm on each axis.
+              Each point is one city. The Y axis defaults to the
+              2014–2024 change in the unemployment rate
+              (percentage points); use the dropdown to switch to
+              wage CAGR. Dashed lines mark the national norm on
+              each axis.
             </p>
             <MigrationVsLaborOutcome rows={data} wageStat={wageStat} />
           </div>
+          <p className="footnote">
+            <sup>‡</sup> A similar utility specification appears in
+            Boeri, Ichino, Moretti and Posch (2019), in their
+            analysis of regional wage equalization in Italy and
+            Germany.
+          </p>
 
           <h3 id="cities">Explore a city</h3>
           <p>
-            The city profile pages below put together economic indicators and
-            visualizations to help understand each city's story from 2014 to 2024. We
-            bring together data from the census and the CNSS, and apply our
-            city-diagnostic framework and our economic-complexity methodologies to bring
-            it to life. Select a city below to see its story.
+            Each city in Morocco has evolved on its own particular
+            trajectory over time. City profile pages enable readers
+            to go deeper in analyzing the evolution of any of the
+            cities identified by the Functional Urban Area approach.
+            City profile pages first clarify the borders of the
+            Functional Urban Area and the communes captured by this
+            definition. They provide a picture snapshot of where
+            that city stands in 2024 in terms of its population,
+            formal wage, unemployment rate, and an overview of its
+            economic structure as well as an estimate of its
+            economic complexity. Readers can compare industry wages
+            in a city against the average across Morocco, as well
+            as against the average wage within the city, to
+            understand which industries are paying relatively higher
+            or lower median wages. Then, the profile discusses how
+            the city has evolved over time, starting with a map of
+            net migration patterns per commune within the
+            functional urban area. It locates the city within the
+            net migration versus wages scatter, which helps form a
+            hypothesis as to what have been the primary forces
+            driving the change in net migration over the past
+            decade. A shift-share decomposition further dissects
+            the component changes in labor demand, and allows the
+            user to understand which industries have been driving
+            these changes in particular. Finally, it shows the
+            emergence of new industries, and puts the unemployment
+            rate into perspective. A significant gap remains in the
+            analysis of cost of living, which is a key supply-side
+            factor that drives migration flows. Still, the profile
+            provides a strong starting point for evaluating the
+            economic performance of cities in Morocco over the past
+            decade.
           </p>
           <CityPicker rows={data} />
         </>

@@ -206,7 +206,6 @@ function Cell(props: CellProps & { mode: Mode }) {
   if (width <= 0 || height <= 0) return null;
 
   if (depth === 1) {
-    const tone = mode === 'section' ? sectionColor(name) : '#1a1a1a';
     return (
       <g>
         <rect
@@ -215,9 +214,8 @@ function Cell(props: CellProps & { mode: Mode }) {
           width={width}
           height={height}
           fill="none"
-          stroke={tone}
-          strokeOpacity={0.85}
-          strokeWidth={1.5}
+          stroke="#fff"
+          strokeWidth={6}
         />
       </g>
     );
@@ -243,7 +241,7 @@ function Cell(props: CellProps & { mode: Mode }) {
           fill={fill}
           fillOpacity={fillOpacity}
           stroke="#fff"
-          strokeWidth={0.6}
+          strokeWidth={1}
         />
       </g>
     );

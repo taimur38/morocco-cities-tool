@@ -55,17 +55,29 @@ export default function MigrationVsWageScatter({
   wageStat = 'mean',
 }: Props) {
   const { points, natWageCagr, natMig } = useMemo(() => {
-    const col = wageStat === 'median' ? 'cnss_median_daily_wage' : 'cnss_avg_daily_wage';
+    // Require both wage statistics (and migration) so the data array stays
+    // stable across the median/mean toggle. Recharts animates scatter points
+    // by their position in the data array, so any change in length or order
+    // makes a dot interpolate to the wrong city's new position.
     const points: Point[] = cityPairs(rows)
       .map((p) => {
-        const c = cagr(p.r2014[col], p.r2024[col], 10);
+        const cMed = cagr(
+          p.r2014.cnss_median_daily_wage,
+          p.r2024.cnss_median_daily_wage,
+          10,
+        );
+        const cMean = cagr(
+          p.r2014.cnss_avg_daily_wage,
+          p.r2024.cnss_avg_daily_wage,
+          10,
+        );
         const m = p.r2024.mig_10yr_net_pct;
-        if (c == null || m == null) return null;
+        if (cMed == null || cMean == null || m == null) return null;
         return {
           city_id: p.city_id,
           city: cleanCityName(p.city_name),
           migration: m as number,
-          wageCagr: c,
+          wageCagr: wageStat === 'median' ? cMed : cMean,
         };
       })
       .filter((p): p is Point => p !== null);

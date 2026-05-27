@@ -177,8 +177,8 @@ function TreemapCell(props: TreemapNodeProps) {
           width={width}
           height={height}
           fill="none"
-          stroke="#1a1a1a"
-          strokeWidth={2}
+          stroke="#fff"
+          strokeWidth={6}
         />
       </g>
     );
@@ -196,7 +196,7 @@ function TreemapCell(props: TreemapNodeProps) {
           height={height}
           fill={fill}
           stroke="#fff"
-          strokeWidth={0.6}
+          strokeWidth={1}
         />
       </g>
     );

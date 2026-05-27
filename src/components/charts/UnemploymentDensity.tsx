@@ -12,6 +12,11 @@ import { cleanCityName } from '../../lib/derive';
 
 type Props = {
   rows: CityPanelRow[];
+  /**
+   * If set, mark this city instead of the default Casablanca + Oujda anchors.
+   * Used on the city profile page so the chart focuses on a single city.
+   */
+  highlightCityId?: number;
 };
 
 const HIGHLIGHT = '#c64646';
@@ -46,25 +51,36 @@ function kde(values: number[], nPoints = 120) {
   return out;
 }
 
-export default function UnemploymentDensity({ rows }: Props) {
-  const { density, casablanca, oujda } = useMemo(() => {
+export default function UnemploymentDensity({ rows, highlightCityId }: Props) {
+  const { density, markers } = useMemo(() => {
     const r24 = rows.filter((r) => r.year === 2024);
     const valid = r24
       .map((r) => ({
-        name: cleanCityName(r.city_name).toLowerCase(),
+        id: r.city_id,
+        name: cleanCityName(r.city_name),
         rate: r.unemp_rate_total,
       }))
-      .filter((d): d is { name: string; rate: number } => d.rate != null);
+      .filter(
+        (d): d is { id: number; name: string; rate: number } => d.rate != null,
+      );
 
     const values = valid.map((d) => d.rate);
-    const find = (q: string) => valid.find((d) => d.name === q)?.rate ?? null;
 
-    return {
-      density: kde(values),
-      casablanca: find('casablanca'),
-      oujda: find('oujda'),
-    };
-  }, [rows]);
+    let m: { label: string; rate: number }[] = [];
+    if (highlightCityId != null) {
+      const hit = valid.find((d) => d.id === highlightCityId);
+      if (hit) m = [{ label: hit.name, rate: hit.rate }];
+    } else {
+      const find = (q: string) =>
+        valid.find((d) => d.name.toLowerCase() === q)?.rate ?? null;
+      const casa = find('casablanca');
+      const oujda = find('oujda');
+      if (casa != null) m.push({ label: 'Casablanca', rate: casa });
+      if (oujda != null) m.push({ label: 'Oujda', rate: oujda });
+    }
+
+    return { density: kde(values), markers: m };
+  }, [rows, highlightCityId]);
 
   if (density.length === 0) return null;
 
@@ -98,34 +114,21 @@ export default function UnemploymentDensity({ rows }: Props) {
             fillOpacity={0.08}
             isAnimationActive={false}
           />
-          {casablanca != null && (
+          {markers.map((m) => (
             <ReferenceLine
-              x={casablanca}
+              key={m.label}
+              x={m.rate}
               stroke={HIGHLIGHT}
               strokeWidth={1.5}
               label={{
-                value: `Casablanca · ${casablanca.toFixed(1)}%`,
+                value: `${m.label} · ${m.rate.toFixed(1)}%`,
                 position: 'top',
                 fontSize: 11,
                 fill: HIGHLIGHT,
                 offset: 6,
               }}
             />
-          )}
-          {oujda != null && (
-            <ReferenceLine
-              x={oujda}
-              stroke={HIGHLIGHT}
-              strokeWidth={1.5}
-              label={{
-                value: `Oujda · ${oujda.toFixed(1)}%`,
-                position: 'top',
-                fontSize: 11,
-                fill: HIGHLIGHT,
-                offset: 6,
-              }}
-            />
-          )}
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     </div>

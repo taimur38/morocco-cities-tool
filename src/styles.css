@@ -26,6 +26,21 @@ body { margin: 0; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* Inline links to a city's profile page. Quiet by default so the page
+   doesn't turn into a wall of red — body text colour with a thin rule
+   underline, switching to the accent on hover. */
+.city-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.city-link:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
 /* ── Header ───────────────────────────────────────────────────────────── */
 
 .site-header {
@@ -157,6 +172,24 @@ strong { font-weight: 600; }
   font-style: italic;
 }
 .error { color: var(--accent); }
+
+/* ── Footnote ─────────────────────────────────────────────────────────── */
+
+.footnote {
+  font-size: 0.875rem;
+  color: var(--muted);
+  border-top: 1px solid var(--rule);
+  padding-top: 0.75rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 100%;
+}
+.footnote-marker {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+  color: var(--muted);
+}
 
 /* ── Chart blocks ─────────────────────────────────────────────────────── */
 

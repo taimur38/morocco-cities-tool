@@ -22,8 +22,8 @@ type Point = {
   city_id: number;
   city: string;
   migration: number;
-  wageCagr: number | null;
-  unempDelta: number | null;
+  wageCagr: number;
+  unempDelta: number;
 };
 
 type Props = {
@@ -64,21 +64,35 @@ export default function MigrationVsLaborOutcome({
   const [metric, setMetric] = useState<Metric>('unemp');
 
   const { points, natWageCagr, natUnempDelta, natMig } = useMemo(() => {
-    const wageCol = wageStat === 'median' ? 'cnss_median_daily_wage' : 'cnss_avg_daily_wage';
+    // Require migration, both wage statistics, AND unemployment delta to all
+    // be present so the data array stays stable across every toggle (wage ↔
+    // unemp on the Y axis, and median ↔ mean on the wage statistic). Recharts
+    // animates scatter points by their position in the data array; if the
+    // city at index i changes, the dot interpolates to the wrong city's new
+    // position.
     const points: Point[] = cityPairs(rows)
       .map((p) => {
         const mig = p.r2024.mig_10yr_net_pct;
-        if (mig == null) return null;
-        const wageCagr = cagr(p.r2014[wageCol], p.r2024[wageCol], 10);
+        const cMed = cagr(
+          p.r2014.cnss_median_daily_wage,
+          p.r2024.cnss_median_daily_wage,
+          10,
+        );
+        const cMean = cagr(
+          p.r2014.cnss_avg_daily_wage,
+          p.r2024.cnss_avg_daily_wage,
+          10,
+        );
         const u14 = p.r2014.unemp_rate_total;
         const u24 = p.r2024.unemp_rate_total;
-        const unempDelta = u14 != null && u24 != null ? u24 - u14 : null;
+        if (mig == null || cMed == null || cMean == null || u14 == null || u24 == null)
+          return null;
         return {
           city_id: p.city_id,
           city: cleanCityName(p.city_name),
           migration: mig,
-          wageCagr,
-          unempDelta,
+          wageCagr: wageStat === 'median' ? cMed : cMean,
+          unempDelta: u24 - u14,
         };
       })
       .filter((p): p is Point => p !== null);
@@ -133,15 +147,17 @@ export default function MigrationVsLaborOutcome({
     return { points, natWageCagr, natUnempDelta, natMig };
   }, [rows, wageStat]);
 
-  // Active points: filter out those missing the current Y metric.
+  // Map points to the active Y value for the current metric. No filtering
+  // here: points already requires both metrics to be present, so the array
+  // length and order stay stable across the metric toggle. That stability
+  // is what lets Recharts animate each dot from its own previous position
+  // to its own new position when the user switches metrics.
   const active = useMemo(
     () =>
-      points
-        .map((p) => {
-          const y = metric === 'wage' ? p.wageCagr : p.unempDelta;
-          return y == null ? null : { ...p, y };
-        })
-        .filter((p): p is Point & { y: number } => p !== null),
+      points.map((p) => ({
+        ...p,
+        y: metric === 'wage' ? p.wageCagr : p.unempDelta,
+      })),
     [points, metric],
   );
 
