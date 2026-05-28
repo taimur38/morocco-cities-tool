@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   useCityPanel,
@@ -10,22 +10,18 @@ import {
 } from '../data/usePanel';
 import CitySelect from '../components/CitySelect';
 import SectionLevels from '../components/profile/SectionLevels';
-import MigrationVsWageScatter from '../components/charts/MigrationVsWageScatter';
+import MigrationVsLaborOutcome from '../components/charts/MigrationVsLaborOutcome';
 import ShiftShareWaterfall from '../components/charts/ShiftShareWaterfall';
 import IndustryTreemap from '../components/charts/IndustryTreemap';
 import NewIndustriesTreemap from '../components/charts/NewIndustriesTreemap';
 import SectionOverviewTreemap from '../components/charts/SectionOverviewTreemap';
 import CityMap from '../components/charts/CityMap';
-import UnemploymentDensity from '../components/charts/UnemploymentDensity';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
-
-type WageStat = 'median' | 'mean';
 
 export default function CityProfile() {
   const { citySlug: slug = '' } = useParams();
   const panel = useCityPanel();
-  const [wageStat, setWageStat] = useState<WageStat>('median');
   const complexity = useCityComplexity();
   const ss = useCityShiftShare();
   const ssIndustry = useCityIndustryShiftShare();
@@ -57,24 +53,6 @@ export default function CityProfile() {
     panel.data.find((r) => r.city_id === city.id && r.year === 2024)
       ?.cnss_median_daily_wage ?? null;
 
-  const unemp2014 =
-    panel.data.find((r) => r.city_id === city.id && r.year === 2014)
-      ?.unemp_rate_total ?? null;
-  const unemp2024 =
-    panel.data.find((r) => r.city_id === city.id && r.year === 2024)
-      ?.unemp_rate_total ?? null;
-  const unempRank = (() => {
-    if (unemp2024 == null) return null;
-    const rates = panel.data
-      .filter((r) => r.year === 2024 && r.unemp_rate_total != null)
-      .map((r) => r.unemp_rate_total as number)
-      .sort((a, b) => a - b);
-    const total = rates.length;
-    // Rank from lowest unemployment = best.
-    const rank = rates.findIndex((r) => r >= unemp2024) + 1;
-    return { rank, total };
-  })();
-
   return (
     <article>
       <p className="muted">
@@ -103,9 +81,9 @@ export default function CityProfile() {
       {/* SECTION 1 — LEVELS */}
       <h3>1. Where {city.name} stands today</h3>
       <p>
-        How big is the city, what does it pay, and how easy is it to find a job? Each block shows
-        the level, the city's rank among the 63 functional urban areas, and a comparison to
-        Casablanca — Morocco's largest and most-watched city.
+        How big is the city, what does it pay, and how easy is it to find a job? Each row shows
+        the 2024 level, the change since 2014, the city's rank among the 63 functional urban
+        areas, and a comparison to Casablanca — Morocco's largest and most-watched city.
       </p>
       <SectionLevels rows={panel.data} cityId={city.id} complexity={complexity.data} />
 
@@ -114,8 +92,9 @@ export default function CityProfile() {
         <p className="chart-caption">
           The city's 2024 industrial composition. Each rectangle is one CNSS industry, sized by
           workers, grouped by NACE section. Toggle the color to view sectional kind,
-          industry-level economic complexity (PCI from the national product space), or how this
-          city's daily wage in each industry compares to the cross-city median for that industry.
+          industry-level economic complexity (PCI from the national product space), how this
+          city's daily wage in each industry compares to the cross-city median for that industry,
+          or the 2014–2024 wage growth (CAGR) within each industry.
         </p>
         {ssIndustry.data && (
           <SectionOverviewTreemap
@@ -131,19 +110,15 @@ export default function CityProfile() {
       {/* SECTION 2 — CHANGES */}
       <h3>2. How {city.name} has changed</h3>
       <p>
-        The rest of this section asks what has driven the city's evolution
-        over the past decade, separating the <strong>demand side</strong>{' '}
-        (where firms have hired or shed workers, and in which industries)
-        from the <strong>supply side</strong> (whether workers can find
-        jobs at all). We start with the within-city map of where people
-        are moving, then locate {city.name} on the migration-versus-wages
-        scatter from the overview. The charts that follow drill into the
-        demand side: a shift-share decomposes the change in formal
-        employment into national, industry-mix, and local-share
-        components; one treemap shows which industries gained or lost
-        share; another shows new industries that have entered since 2014.
-        The section closes with unemployment, the cleanest supply-side
-        indicator we can measure.
+        The rest of this section asks what has driven the city's
+        evolution over the past decade. We start with the within-city
+        map of where people are moving, then locate {city.name} on
+        the migration-versus-labor-outcomes scatter from the overview.
+        The charts that follow decompose the change in formal
+        employment: a shift-share splits it into national,
+        industry-mix, and local-share components; one treemap shows
+        which industries gained or lost share; another shows new
+        industries that have entered since 2014.
       </p>
 
       <div className="chart-block">
@@ -166,29 +141,17 @@ export default function CityProfile() {
         framing was set up to read.
       </p>
       <div className="chart-block">
-        <div className="chart-toolbar">
-          <label className="chart-toolbar-control">
-            Wage statistic:
-            <select
-              className="chart-toolbar-select"
-              value={wageStat}
-              onChange={(e) => setWageStat(e.target.value as WageStat)}
-            >
-              <option value="median">Median</option>
-              <option value="mean">Mean</option>
-            </select>
-          </label>
-        </div>
-        <h4>Position in the migration vs. wages map</h4>
+        <h4>Position in the migration vs. labor-market outcomes map</h4>
         <p className="chart-caption">
-          Each point is one city. {city.name} is highlighted in red. The Y axis shows the
-          CAGR of the {wageStat} CNSS daily wage; toggle between median (more robust to
-          outlier industries) and mean.
+          Each point is one city. {city.name} is highlighted in red. The Y axis
+          toggle switches between median and mean wage growth (CAGR of CNSS
+          daily wage) and the 2014–2024 change in the unemployment rate. Dashed
+          lines mark the national norm on each axis.
         </p>
-        <MigrationVsWageScatter
+        <MigrationVsLaborOutcome
           rows={panel.data}
           highlightCityId={city.id}
-          wageStat={wageStat}
+          defaultMetric="wage_median"
         />
       </div>
 
@@ -280,61 +243,6 @@ export default function CityProfile() {
             )}
           </div>
         </>
-      )}
-
-      <h4>The supply side: unemployment</h4>
-      <p>
-        Everything above describes the demand side: who is hiring, in
-        which industries, and on what terms. The cleanest available
-        measure of the supply side is the unemployment rate, which
-        captures how easily workers can convert their labour into a
-        job at the prevailing wage. Cost of living is the other
-        important supply-side variable, but reliable city-level price
-        data for Morocco is not available.
-      </p>
-      {unemp2024 != null ? (
-        <>
-          <p>
-            In 2024, the unemployment rate in {city.name} stood at{' '}
-            <strong>{unemp2024.toFixed(1)}%</strong>
-            {unemp2014 != null && (
-              <>
-                , compared to <strong>{unemp2014.toFixed(1)}%</strong> in
-                2014 (a change of{' '}
-                <strong>
-                  {(unemp2024 - unemp2014 >= 0 ? '+' : '') +
-                    (unemp2024 - unemp2014).toFixed(1)}{' '}
-                  pp
-                </strong>
-                )
-              </>
-            )}
-            {unempRank && (
-              <>
-                . That places it at rank{' '}
-                <strong>
-                  {unempRank.rank} of {unempRank.total}
-                </strong>{' '}
-                cities (rank 1 = lowest unemployment)
-              </>
-            )}
-            . The chart below shows the full distribution across all
-            cities, with {city.name} marked.
-          </p>
-          <div className="chart-block">
-            <h4>Where {city.name} sits in the city unemployment distribution</h4>
-            <p className="chart-caption">
-              Kernel density of the 2024 unemployment rate across the
-              66 functional urban areas. The vertical line marks{' '}
-              {city.name}.
-            </p>
-            <UnemploymentDensity rows={panel.data} highlightCityId={city.id} />
-          </div>
-        </>
-      ) : (
-        <p className="muted">
-          Unemployment data is not available for {city.name}.
-        </p>
       )}
     </article>
   );

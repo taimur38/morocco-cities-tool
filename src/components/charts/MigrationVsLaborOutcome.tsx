@@ -15,21 +15,24 @@ import type { CityPanelRow } from '../../data/types';
 import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
 import { fmtNum } from '../../lib/format';
 
-type Metric = 'wage' | 'unemp';
-type WageStat = 'median' | 'mean';
+type Metric = 'wage_median' | 'wage_mean' | 'unemp';
+
+const isWage = (m: Metric): m is 'wage_median' | 'wage_mean' =>
+  m === 'wage_median' || m === 'wage_mean';
 
 type Point = {
   city_id: number;
   city: string;
   migration: number;
-  wageCagr: number;
+  wageMedianCagr: number;
+  wageMeanCagr: number;
   unempDelta: number;
 };
 
 type Props = {
   rows: CityPanelRow[];
   highlightCityId?: number;
-  wageStat?: WageStat;
+  defaultMetric?: Metric;
 };
 
 type Domain = { x: [number, number]; y: [number, number] };
@@ -38,38 +41,43 @@ type MouseEvt = { xValue?: number; yValue?: number } | null;
 const HIGHLIGHT = '#c64646';
 const BASE = '#1a1a1a';
 
-const metricLabel = (m: Metric, wageStat: WageStat): string =>
-  m === 'wage'
-    ? `CNSS ${wageStat} daily wage, CAGR 2014–2024 (%)`
-    : 'Δ unemployment rate, 2014→2024 (pp)';
+const metricLabel = (m: Metric): string => {
+  if (m === 'wage_median') return 'CNSS median daily wage, CAGR 2014–2024 (%)';
+  if (m === 'wage_mean') return 'CNSS mean daily wage, CAGR 2014–2024 (%)';
+  return 'Δ unemployment rate, 2014→2024 (pp)';
+};
 
 const TICK_FMT: Record<Metric, (v: number) => string> = {
-  wage: (v) => `${v.toFixed(1)}%`,
+  wage_median: (v) => `${v.toFixed(1)}%`,
+  wage_mean: (v) => `${v.toFixed(1)}%`,
   unemp: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`,
 };
 
-const TOOLTIP_FMT: Record<Metric, (p: Point) => string> = {
-  wage: (p) => (p.wageCagr == null ? '—' : `${p.wageCagr.toFixed(1)}% / yr`),
-  unemp: (p) =>
-    p.unempDelta == null
-      ? '—'
-      : `${p.unempDelta >= 0 ? '+' : ''}${p.unempDelta.toFixed(1)} pp`,
+const yOf = (p: Point, m: Metric): number =>
+  m === 'wage_median' ? p.wageMedianCagr : m === 'wage_mean' ? p.wageMeanCagr : p.unempDelta;
+
+const tooltipFmt = (p: Point, m: Metric): string => {
+  if (isWage(m)) {
+    const v = yOf(p, m);
+    return v == null ? '—' : `${v.toFixed(1)}% / yr`;
+  }
+  return p.unempDelta == null
+    ? '—'
+    : `${p.unempDelta >= 0 ? '+' : ''}${p.unempDelta.toFixed(1)} pp`;
 };
 
 export default function MigrationVsLaborOutcome({
   rows,
   highlightCityId,
-  wageStat = 'mean',
+  defaultMetric = 'unemp',
 }: Props) {
-  const [metric, setMetric] = useState<Metric>('unemp');
+  const [metric, setMetric] = useState<Metric>(defaultMetric);
 
-  const { points, natWageCagr, natUnempDelta, natMig } = useMemo(() => {
+  const { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig } = useMemo(() => {
     // Require migration, both wage statistics, AND unemployment delta to all
-    // be present so the data array stays stable across every toggle (wage ↔
-    // unemp on the Y axis, and median ↔ mean on the wage statistic). Recharts
-    // animates scatter points by their position in the data array; if the
-    // city at index i changes, the dot interpolates to the wrong city's new
-    // position.
+    // be present so the data array stays stable across every toggle. Recharts
+    // animates scatter points by their position in the data array; if the city
+    // at index i changes, the dot interpolates to the wrong city's new position.
     const points: Point[] = cityPairs(rows)
       .map((p) => {
         const mig = p.r2024.mig_10yr_net_pct;
@@ -91,32 +99,33 @@ export default function MigrationVsLaborOutcome({
           city_id: p.city_id,
           city: cleanCityName(p.city_name),
           migration: mig,
-          wageCagr: wageStat === 'median' ? cMed : cMean,
+          wageMedianCagr: cMed,
+          wageMeanCagr: cMean,
           unempDelta: u24 - u14,
         };
       })
       .filter((p): p is Point => p !== null);
 
-    // National wage CAGR: aggregate (days-weighted) average for mean wages;
-    // cross-city median CAGR for median wages (since a national median can't
-    // be built from city aggregates).
-    let natWageCagr: number;
-    if (wageStat === 'mean') {
-      const aggWage = (year: number) => {
-        const ys = rows.filter((r) => r.year === year);
-        const sal = ys.reduce((s, r) => s + (r.cnss_salary ?? 0), 0);
-        const days = ys.reduce((s, r) => s + (r.cnss_days ?? 0), 0);
-        return days > 0 ? sal / days : null;
-      };
-      natWageCagr = cagr(aggWage(2014), aggWage(2024), 10) ?? 0;
-    } else {
-      const cs = points
-        .map((p) => p.wageCagr)
-        .filter((c): c is number => c != null)
-        .sort((a, b) => a - b);
-      const n = cs.length;
-      natWageCagr = n === 0 ? 0 : n % 2 === 0 ? (cs[n / 2 - 1] + cs[n / 2]) / 2 : cs[(n - 1) / 2];
-    }
+    // National mean-wage CAGR: days-weighted aggregate (the wage a typical
+    // formal-sector worker actually saw).
+    const aggMeanWage = (year: number) => {
+      const ys = rows.filter((r) => r.year === year);
+      const sal = ys.reduce((s, r) => s + (r.cnss_salary ?? 0), 0);
+      const days = ys.reduce((s, r) => s + (r.cnss_days ?? 0), 0);
+      return days > 0 ? sal / days : null;
+    };
+    const natWageMeanCagr = cagr(aggMeanWage(2014), aggMeanWage(2024), 10) ?? 0;
+
+    // National median-wage CAGR: cross-city median (a national median can't be
+    // built from city aggregates).
+    const medCagrs = points.map((p) => p.wageMedianCagr).sort((a, b) => a - b);
+    const nMed = medCagrs.length;
+    const natWageMedianCagr =
+      nMed === 0
+        ? 0
+        : nMed % 2 === 0
+          ? (medCagrs[nMed / 2 - 1] + medCagrs[nMed / 2]) / 2
+          : medCagrs[(nMed - 1) / 2];
 
     // National unemployment change = aggregate change in (unemp / labor force)
     // across all cities. Built from levels — sum(employed) and sum(labor force).
@@ -141,14 +150,22 @@ export default function MigrationVsLaborOutcome({
     const u24n = aggUnemp(2024);
     const natUnempDelta = u14n != null && u24n != null ? u24n - u14n : 0;
 
-    const migs = points.map((p) => p.migration);
-    const natMig = migs.length ? migs.reduce((s, v) => s + v, 0) / migs.length : 0;
+    // Median is robust to the long right tail of fast-growing peripheries
+    // (Ain El Aouda, Deroua, Tangier) which would otherwise drag a mean.
+    const migsSorted = points.map((p) => p.migration).sort((a, b) => a - b);
+    const mN = migsSorted.length;
+    const natMig =
+      mN === 0
+        ? 0
+        : mN % 2 === 0
+        ? (migsSorted[mN / 2 - 1] + migsSorted[mN / 2]) / 2
+        : migsSorted[(mN - 1) / 2];
 
-    return { points, natWageCagr, natUnempDelta, natMig };
-  }, [rows, wageStat]);
+    return { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig };
+  }, [rows]);
 
   // Map points to the active Y value for the current metric. No filtering
-  // here: points already requires both metrics to be present, so the array
+  // here: points already requires every metric to be present, so the array
   // length and order stay stable across the metric toggle. That stability
   // is what lets Recharts animate each dot from its own previous position
   // to its own new position when the user switches metrics.
@@ -156,12 +173,17 @@ export default function MigrationVsLaborOutcome({
     () =>
       points.map((p) => ({
         ...p,
-        y: metric === 'wage' ? p.wageCagr : p.unempDelta,
+        y: yOf(p, metric),
       })),
     [points, metric],
   );
 
-  const natY = metric === 'wage' ? natWageCagr : natUnempDelta;
+  const natY =
+    metric === 'wage_median'
+      ? natWageMedianCagr
+      : metric === 'wage_mean'
+        ? natWageMeanCagr
+        : natUnempDelta;
 
   const [zoom, setZoom] = useState<Domain | null>(null);
   const [drag, setDrag] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -254,11 +276,25 @@ export default function MigrationVsLaborOutcome({
     setDrag(null);
   };
 
-  const xDomain: [number | string, number | string] = zoom ? zoom.x : ['auto', 'auto'];
+  // 2.5% padding on either side of the data range so labels for cities at the
+  // extreme ends don't get clipped by the plot edge.
+  const padded = (vals: number[], pct = 0.025): [number, number] => {
+    const lo = Math.min(...vals);
+    const hi = Math.max(...vals);
+    const pad = (hi - lo) * pct || 1;
+    return [lo - pad, hi + pad];
+  };
+  const xDomain: [number | string, number | string] = zoom
+    ? zoom.x
+    : points.length
+    ? padded(points.map((p) => p.migration))
+    : ['auto', 'auto'];
   const yDomain: [number | string, number | string] = zoom ? zoom.y : ['auto', 'auto'];
 
   const natYLabel =
-    metric === 'wage'
+    metric === 'wage_median'
+      ? `median ${natY.toFixed(1)}% / yr`
+      : isWage(metric)
       ? `nat. avg ${natY.toFixed(1)}% / yr`
       : `nat. avg ${natY >= 0 ? '+' : ''}${natY.toFixed(1)} pp`;
 
@@ -272,7 +308,8 @@ export default function MigrationVsLaborOutcome({
             value={metric}
             onChange={(e) => handleMetricChange(e.target.value as Metric)}
           >
-            <option value="wage">{wageStat === 'median' ? 'Median' : 'Mean'} wage growth (CAGR, %)</option>
+            <option value="wage_median">Median wage growth (CAGR, %)</option>
+            <option value="wage_mean">Mean wage growth (CAGR, %)</option>
             <option value="unemp">Δ unemployment (pp)</option>
           </select>
         </label>
@@ -315,14 +352,14 @@ export default function MigrationVsLaborOutcome({
           <YAxis
             type="number"
             dataKey="y"
-            name={metric === 'wage' ? 'Wage CAGR' : 'Δ unemployment'}
+            name={isWage(metric) ? 'Wage CAGR' : 'Δ unemployment'}
             domain={yDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
             width={60}
             tickFormatter={TICK_FMT[metric]}
             label={{
-              value: metricLabel(metric, wageStat),
+              value: metricLabel(metric),
               angle: -90,
               position: 'insideLeft',
               offset: 12,
@@ -334,7 +371,7 @@ export default function MigrationVsLaborOutcome({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `nat. avg ${natMig.toFixed(1)}%`,
+              value: `median ${natMig.toFixed(1)}%`,
               position: 'insideTopLeft',
               fontSize: 10,
               fill: '#666',
@@ -346,7 +383,8 @@ export default function MigrationVsLaborOutcome({
             strokeDasharray="3 3"
             label={{
               value: natYLabel,
-              position: 'insideRight',
+              position: 'insideTopRight',
+              offset: 4,
               fontSize: 10,
               fill: '#666',
             }}
@@ -368,7 +406,10 @@ export default function MigrationVsLaborOutcome({
                   <strong>{p.city}</strong>
                   <div>Net migration: {fmtNum(p.migration, 1)}%</div>
                   <div>
-                    {metric === 'wage' ? 'Wage CAGR' : 'Δ unemployment'}: {TOOLTIP_FMT[metric](p)}
+                    {isWage(metric)
+                      ? `${metric === 'wage_median' ? 'Median' : 'Mean'} wage CAGR`
+                      : 'Δ unemployment'}
+                    : {tooltipFmt(p, metric)}
                   </div>
                 </div>
               );

@@ -102,11 +102,18 @@ export default function MigrationVsWageScatter({
       natWageCagr = n === 0 ? 0 : n % 2 === 0 ? (cagrs[n / 2 - 1] + cagrs[n / 2]) / 2 : cagrs[(n - 1) / 2];
     }
 
-    // National migration reference = simple mean across cities. Population-
-    // weighted equals zero by construction (net migration is internal), so a
-    // city-level reference is what makes the chart legible.
-    const migs = points.map((p) => p.migration);
-    const natMig = migs.length ? migs.reduce((s, v) => s + v, 0) / migs.length : 0;
+    // National migration reference = cross-city median. Population-weighted
+    // equals zero by construction (net migration is internal); median is
+    // robust to the long right tail of fast-growing peripheries (Ain El
+    // Aouda, Deroua, Tangier) that would otherwise drag a mean upward.
+    const migsSorted = points.map((p) => p.migration).sort((a, b) => a - b);
+    const mN = migsSorted.length;
+    const natMig =
+      mN === 0
+        ? 0
+        : mN % 2 === 0
+        ? (migsSorted[mN / 2 - 1] + migsSorted[mN / 2]) / 2
+        : migsSorted[(mN - 1) / 2];
 
     return { points, natWageCagr, natMig };
   }, [rows, wageStat]);
@@ -185,7 +192,19 @@ export default function MigrationVsWageScatter({
     setDrag(null);
   };
 
-  const xDomain: [number | string, number | string] = zoom ? zoom.x : ['auto', 'auto'];
+  // 2.5% padding on either side of the data range so labels for cities at the
+  // extreme ends don't get clipped by the plot edge.
+  const padded = (vals: number[], pct = 0.025): [number, number] => {
+    const lo = Math.min(...vals);
+    const hi = Math.max(...vals);
+    const pad = (hi - lo) * pct || 1;
+    return [lo - pad, hi + pad];
+  };
+  const xDomain: [number | string, number | string] = zoom
+    ? zoom.x
+    : points.length
+    ? padded(points.map((p) => p.migration))
+    : ['auto', 'auto'];
   const yDomain: [number | string, number | string] = zoom ? zoom.y : ['auto', 'auto'];
 
   return (
@@ -249,7 +268,7 @@ export default function MigrationVsWageScatter({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `nat. avg ${natMig.toFixed(1)}%`,
+              value: `median ${natMig.toFixed(1)}%`,
               position: 'insideTopLeft',
               fontSize: 10,
               fill: '#666',
@@ -260,8 +279,9 @@ export default function MigrationVsWageScatter({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `nat. avg ${natWageCagr.toFixed(1)}% / yr`,
-              position: 'insideRight',
+              value: `${wageStat === 'median' ? 'median' : 'nat. avg'} ${natWageCagr.toFixed(1)}% / yr`,
+              position: 'insideTopRight',
+              offset: 4,
               fontSize: 10,
               fill: '#666',
             }}

@@ -18,7 +18,7 @@ export default function MigrationBars({ rows, n = 10 }: { rows: CityPanelRow[]; 
     <DivergingBars
       items={items}
       n={n}
-      xLabel="Net migration (10-year), % of sedentary population"
+      xLabel="Net migration (10-year), % of 2014 resident population"
       valueFormat={(v) => `${v.toFixed(0)}%`}
     />
   );

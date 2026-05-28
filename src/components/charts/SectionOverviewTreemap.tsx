@@ -14,12 +14,21 @@ import {
   type RecordBox,
 } from './sectionLabels';
 
-type Mode = 'section' | 'complexity' | 'wage_industry' | 'wage_city';
+type Mode =
+  | 'section'
+  | 'complexity'
+  | 'wage_industry'
+  | 'wage_city'
+  | 'wage_growth';
 
 // Diverging color scale for "% above/below the reference median", clipped at
 // ±this bound. Picked empirically to keep the dominant signal readable while
 // still letting outliers reach the extremes.
 const WAGE_DEV_BOUND = 50;
+// Annualized wage-growth CAGR (%) — clipped at ±this bound. Picked so the
+// dominant signal stays readable; CNSS industry wage growth typically sits
+// well inside a ±15% range, with the long tail driven by small denominators.
+const WAGE_CAGR_BOUND = 15;
 
 type Leaf = {
   name: string;
@@ -27,10 +36,12 @@ type Leaf = {
   section: string;
   pci: number | null;
   workers_2024: number;
+  daily_wage_2014: number | null;
   daily_wage_2024: number | null;
   industry_median_wage: number | null;
   wage_dev_industry_pct: number | null;
   wage_dev_city_pct: number | null;
+  wage_cagr_pct: number | null;
 };
 type Group = { name: string; children: Leaf[] };
 
@@ -107,11 +118,23 @@ export default function SectionOverviewTreemap({
       const wage = c.daily_wage_2024 != null && Number.isFinite(c.daily_wage_2024)
         ? c.daily_wage_2024
         : null;
+      const wage14 =
+        c.daily_wage_2014 != null && Number.isFinite(c.daily_wage_2014)
+          ? c.daily_wage_2014
+          : null;
       const wage_dev_industry_pct =
         wage != null && med != null && med > 0 ? ((wage - med) / med) * 100 : null;
       const wage_dev_city_pct =
         wage != null && cityMedianWage != null && cityMedianWage > 0
           ? ((wage - cityMedianWage) / cityMedianWage) * 100
+          : null;
+      // Per-industry wage growth = CAGR of the city-level mean daily wage
+      // (sum_salary / sum_days) within this CNSS industry. Reported as %/yr;
+      // null when the industry was absent in 2014 (treemap is restricted to
+      // workers_2024 > 0, but workers_2014 may be 0 — those are entry cells).
+      const wage_cagr_pct =
+        wage != null && wage14 != null && wage14 > 0
+          ? (Math.pow(wage / wage14, 1 / 10) - 1) * 100
           : null;
       const arr = bySection.get(c.section) ?? [];
       arr.push({
@@ -120,10 +143,12 @@ export default function SectionOverviewTreemap({
         section: c.section,
         pci,
         workers_2024: c.workers_2024,
+        daily_wage_2014: wage14,
         daily_wage_2024: wage,
         industry_median_wage: med,
         wage_dev_industry_pct,
         wage_dev_city_pct,
+        wage_cagr_pct,
       });
       bySection.set(c.section, arr);
     }
@@ -156,6 +181,7 @@ export default function SectionOverviewTreemap({
             <option value="complexity">Industry complexity</option>
             <option value="wage_industry">Daily wage vs. industry national median</option>
             <option value="wage_city">Daily wage vs. city median</option>
+            <option value="wage_growth">Wage growth, CAGR 2014–2024</option>
           </select>
         </label>
         <span className="chart-toolbar-hint">
@@ -187,6 +213,16 @@ export default function SectionOverviewTreemap({
           note="Each cell's daily wage compared to the city's median daily wage across all CNSS person-days."
         />
       )}
+      {mode === 'wage_growth' && (
+        <WageLegend
+          bound={WAGE_CAGR_BOUND}
+          reference="0% / yr"
+          unit="% / yr"
+          lowLabel="declining"
+          highLabel="rising"
+          note={`Annualized growth in each industry's mean daily wage between 2014 and 2024. Color scale capped at ±${WAGE_CAGR_BOUND}% / yr.`}
+        />
+      )}
     </div>
   );
 }
@@ -205,10 +241,12 @@ type CellProps = {
   section?: string;
   pci?: number | null;
   workers_2024?: number;
+  daily_wage_2014?: number | null;
   daily_wage_2024?: number | null;
   industry_median_wage?: number | null;
   wage_dev_industry_pct?: number | null;
   wage_dev_city_pct?: number | null;
+  wage_cagr_pct?: number | null;
   recordBox?: RecordBox;
 };
 
@@ -255,6 +293,9 @@ function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
       fill = sectionColor(props.section);
     } else if (mode === 'complexity') {
       fill = complexityColor(props.pci ?? null, pciScale);
+    } else if (mode === 'wage_growth') {
+      const v = props.wage_cagr_pct ?? null;
+      fill = v == null ? '#f6f6f4' : divergingPctColor(v, WAGE_CAGR_BOUND);
     } else {
       const dev =
         mode === 'wage_industry' ? props.wage_dev_industry_pct : props.wage_dev_city_pct;
@@ -286,10 +327,12 @@ type TipPayload = {
     section?: string;
     pci?: number | null;
     workers_2024?: number;
+    daily_wage_2014?: number | null;
     daily_wage_2024?: number | null;
     industry_median_wage?: number | null;
     wage_dev_industry_pct?: number | null;
     wage_dev_city_pct?: number | null;
+    wage_cagr_pct?: number | null;
     children?: unknown[];
   };
 };
@@ -315,6 +358,12 @@ function LeafTooltip({ active, payload }: TipProps) {
         <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
         <dt>Daily wage 2024 (MAD)</dt>
         <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
+        <dt>Wage growth 2014–2024</dt>
+        <dd>
+          {p.wage_cagr_pct == null
+            ? '—'
+            : `${p.wage_cagr_pct >= 0 ? '+' : ''}${fmtNum(p.wage_cagr_pct, 1)}% / yr`}
+        </dd>
         <dt>vs. industry national median</dt>
         <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
         <dt>vs. city median</dt>

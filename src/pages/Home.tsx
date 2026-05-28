@@ -120,7 +120,8 @@ export default function Home() {
             <p className="chart-caption">
               Top 10 gainers and bottom 10 losers among Morocco's 66
               functional urban areas. Expressed as a percent of the
-              sedentary population (the people already there in 2014).
+              2014 resident population — i.e. "Tangier gained 54% of
+              its 2014 population on net through migration."
             </p>
             <MigrationBars rows={data} />
           </div>
@@ -320,7 +321,7 @@ export default function Home() {
             cost of living, as more workers bid for the same housing
             stock, or increasing unemployment as prospective workers
             arrive at the city and are unable to find work
-            (Glaeser 2008).
+            (Glaeser and Gottlieb 2009).
           </p>
           <p>
             This framing then changes how we read the labor-market
@@ -334,9 +335,10 @@ export default function Home() {
             relative success rather than failure. Combining these
             indicators with net migration helps disambiguate the two
             stories. <CityLink name="Tetouan" />, for example, has
-            seen significant net migration alongside a significant
-            rise in unemployment. Should we read its rising
-            unemployment as a symptom of relative success?
+            seen significant net in-migration alongside a rise in
+            unemployment, more consistent with the interpretation
+            that it is a relatively attractive place to be
+            unemployed than that the city is in decline.
           </p>
           <div className="chart-block">
             <h4>Net migration vs labor-market outcomes</h4>
@@ -347,8 +349,55 @@ export default function Home() {
               wage CAGR. Dashed lines mark the national norm on
               each axis.
             </p>
-            <MigrationVsLaborOutcome rows={data} wageStat={wageStat} />
+            <MigrationVsLaborOutcome rows={data} />
           </div>
+          <p>
+            Ultimately, this work has used a wider definition of the
+            boundary of a city and then presented a minimal
+            framework to assess the economic performance of those
+            cities. The framework draws on ideas from the urban
+            economics literature on spatial equilibrium and internal
+            migration to help interpret labor-market outcomes, and
+            organises the data into a tool that can be used to
+            explore any of the cities defined in the Functional
+            Urban Area database from the Global Human Settlement
+            Layer. By reading these indicators together, the
+            framework can recast outcomes that look unfavorable in
+            isolation — <CityLink name="Tetouan" />'s rising
+            unemployment, for instance — as plausible signals of
+            relative attractiveness rather than decline.
+          </p>
+          <p>
+            At the same time, the tool and framework would benefit
+            from further development and come with important
+            caveats. Changes in the measured unemployment rate may
+            sometimes reflect a change in the incentives of
+            respondents to report that they are unemployed, rather
+            than isolating changes in true unemployment. Similarly,
+            changes in firms and workers registered with the CNSS
+            may reflect uneven formalization driven by changing
+            incentives and administrative practices, alongside real
+            expansions in production, and so should be interpreted
+            with some caution. Readers should ask whether an
+            increase in employment in a particular sector reflects
+            previously informal firms becoming registered, or new
+            firms being founded and growing employment. Finally,
+            internal migration patterns capture both rural-to-urban
+            and urban-to-urban migration. The spatial equilibrium
+            concept may describe urban-to-urban migration better
+            than rural-to-urban migration (see Gollin et al. 2017),
+            but without source–destination migration flows we are
+            unable to disambiguate these forces. Women, in
+            particular, may face additional mobility constraints
+            that weaken the spatial equilibrium claim, and this
+            deserves further attention and study.
+          </p>
+          <p>
+            Even so, this tool and framework offer a strong starting
+            point for analyzing the evolution of cities in Morocco,
+            and help frame important questions for researchers and
+            policy makers to prioritize.
+          </p>
           <p className="footnote">
             <sup>‡</sup> A similar utility specification appears in
             Boeri, Ichino, Moretti and Posch (2019), in their
@@ -392,6 +441,94 @@ export default function Home() {
             decade.
           </p>
           <CityPicker rows={data} />
+
+          <details className="references">
+            <summary>References</summary>
+            <ul>
+              <li>
+                Boeri, T., Ichino, A., Moretti, E., &amp; Posch, J.
+                (2019). <em>Wage Equalization and Regional
+                Misallocation: Evidence from Italian and German
+                Provinces</em>. NBER Working Paper No. 25612.
+                (Published in <em>Journal of the European Economic
+                Association</em> 19(6), 2021.)
+              </li>
+              <li>
+                Glaeser, E. L., &amp; Gottlieb, J. D. (2009). The
+                Wealth of Cities: Agglomeration Economies and
+                Spatial Equilibrium in the United States.{' '}
+                <em>Journal of Economic Literature</em>, 47(4),
+                983–1028.{' '}
+                <a
+                  href="https://doi.org/10.1257/jel.47.4.983"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  doi.org/10.1257/jel.47.4.983
+                </a>
+              </li>
+              <li>
+                GHSL. (2019). <em>Global Human Settlement Layer —
+                Functional Urban Areas</em>. European Commission
+                Joint Research Centre.{' '}
+                <a
+                  href="https://human-settlement.emergency.copernicus.eu/ghs_fua.php"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  human-settlement.emergency.copernicus.eu
+                </a>
+              </li>
+              <li>
+                Gollin, D., Kirchberger, M., &amp; Lagakos, D.
+                (2017). <em>In Search of a Spatial Equilibrium in
+                the Developing World</em>. NBER Working Paper No.
+                23916.{' '}
+                <a
+                  href="https://www.nber.org/papers/w23916"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  nber.org/papers/w23916
+                </a>
+              </li>
+              <li>
+                Harris, J. R., &amp; Todaro, M. P. (1970). Migration,
+                Unemployment and Development: A Two-Sector Analysis.{' '}
+                <em>American Economic Review</em>, 60(1), 126–142.
+              </li>
+              <li>
+                Karibi, K., Kharmich, H., &amp; El Harrouni, K.
+                (2024). Urban Policy and Transformation in Morocco.
+                In <em>Morocco Handbook</em> (Ch. 14).
+              </li>
+              <li>
+                Lall, S., Mahgoub, A., Maria, A., Touati, A., &amp;
+                Acero, J. L. (2019). <em>Leveraging Urbanization to
+                Promote a New Growth Model While Reducing Territorial
+                Disparities in Morocco: Urban and Regional
+                Development Policy Note</em>. World Bank.{' '}
+                <a
+                  href="https://doi.org/10.1596/978-1-4648-1433-4"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  doi.org/10.1596/978-1-4648-1433-4
+                </a>
+              </li>
+              <li>
+                Roback, J. (1982). Wages, Rents, and the Quality of
+                Life. <em>Journal of Political Economy</em>, 90(6),
+                1257–1278.
+              </li>
+              <li>
+                Rosen, S. (1979). Wage-based indexes of urban
+                quality of life. In P. M. Mieszkowski &amp; M. R.
+                Straszheim (Eds.), <em>Current Issues in Urban
+                Economics</em>. Johns Hopkins University Press.
+              </li>
+            </ul>
+          </details>
         </>
       )}
     </article>

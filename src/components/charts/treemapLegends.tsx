@@ -38,10 +38,16 @@ export function WageLegend({
   bound,
   reference = 'industry median',
   note = "Each cell's daily wage (CNSS total salary ÷ days worked) compared to the median across all cities where that industry appears.",
+  unit = '%',
+  lowLabel = 'lower pay',
+  highLabel = 'higher pay',
 }: {
   bound: number;
   reference?: string;
   note?: string;
+  unit?: string;
+  lowLabel?: string;
+  highLabel?: string;
 }) {
   const stops = [-1, -0.66, -0.33, 0, 0.33, 0.66, 1];
   return (
@@ -56,9 +62,9 @@ export function WageLegend({
         ))}
       </div>
       <div className="treemap-legend-labels">
-        <span>≤ −{bound}% (lower pay)</span>
+        <span>≤ −{bound}{unit} ({lowLabel})</span>
         <span>{reference}</span>
-        <span>≥ +{bound}% (higher pay)</span>
+        <span>≥ +{bound}{unit} ({highLabel})</span>
       </div>
       <div className="treemap-legend-note">{note}</div>
     </div>

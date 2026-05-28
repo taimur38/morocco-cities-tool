@@ -558,3 +558,64 @@ strong { font-weight: 600; }
   background: #fff;
   border-color: #b8b8b0;
 }
+
+/* ── References (collapsible) ─────────────────────────────────────────── */
+
+.references {
+  margin-top: 3rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+.references > summary {
+  list-style: none;
+  cursor: pointer;
+  font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+}
+.references > summary::-webkit-details-marker { display: none; }
+.references > summary::before {
+  content: '›';
+  display: inline-block;
+  font-weight: 400;
+  color: var(--muted);
+  transition: transform 150ms ease;
+  transform: translateY(-1px);
+}
+.references[open] > summary::before {
+  transform: rotate(90deg) translateX(-1px);
+}
+.references > summary:hover { color: var(--accent); }
+.references > summary:hover::before { color: var(--accent); }
+
+.references ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+.references li {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+  margin-bottom: 0.7rem;
+}
+.references li:last-child { margin-bottom: 0; }
+.references a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+.references a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
