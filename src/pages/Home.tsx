@@ -352,20 +352,18 @@ export default function Home() {
             <MigrationVsLaborOutcome rows={data} />
           </div>
           <p>
-            Ultimately, this work has used a wider definition of the
-            boundary of a city and then presented a minimal
-            framework to assess the economic performance of those
-            cities. The framework draws on ideas from the urban
-            economics literature on spatial equilibrium and internal
-            migration to help interpret labor-market outcomes, and
-            organises the data into a tool that can be used to
-            explore any of the cities defined in the Functional
-            Urban Area database from the Global Human Settlement
-            Layer. By reading these indicators together, the
-            framework can recast outcomes that look unfavorable in
-            isolation — <CityLink name="Tetouan" />'s rising
-            unemployment, for instance — as plausible signals of
-            relative attractiveness rather than decline.
+            This work has done two things: redrawn the boundary of
+            a city more broadly, and built a minimal framework for
+            assessing the economic performance of those cities. The
+            framework draws on the urban economics of spatial
+            equilibrium and internal migration to interpret
+            labor-market outcomes, and organises the data into a
+            tool that extends to every city in the Functional Urban
+            Area database from the Global Human Settlement Layer.
+            Read together, these indicators can recast outcomes that
+            look unfavorable in isolation — <CityLink name="Tetouan" />'s
+            rising unemployment, for instance — as plausible signals
+            of relative attractiveness rather than decline.
           </p>
           <p>
             At the same time, the tool and framework would benefit
