@@ -111,7 +111,9 @@ export default function Home() {
             vote with their feet: if people are on net leaving, it is
             a strong signal that the city is not meeting the needs of
             its people, and if people are arriving in droves, the
-            city might be getting something right. The graph below
+            city might be getting something right. According to HCP
+            data, roughly one in five Moroccans now lives in a
+            different commune than they did in 2014. The graph below
             shows the top 10 gainers and bottom 10 losers among
             Morocco's functional urban areas.
           </p>
