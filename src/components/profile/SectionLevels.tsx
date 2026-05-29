@@ -14,8 +14,9 @@ type Indicator = {
   note: string;
   value: string;
   change: string;
-  rank: number;
-  rankOf: number;
+  // string lets us render '—' when the source data is absent (e.g. CNSS wage
+  // for FUAs that have no matching ville in the registry).
+  rank: string;
   // null = don't show; '—' is shown explicitly when set to a string
   vsCasa: string | null;
 };
@@ -98,7 +99,10 @@ function deriveIndicators(
   const popLevel = level(y2024, me, me14, casa, (r) => r.pop_total, 'desc');
   const wageLevel = level(y2024, me, me14, casa, (r) => r.cnss_median_daily_wage, 'desc');
   const unempLevel = level(y2024, me, me14, casa, (r) => r.unemp_rate_total, 'asc');
-  if (!popLevel || !wageLevel || !unempLevel) return null;
+  // Population is the FUA-defining metric and is always present; wage and
+  // unemployment can be missing (three FUAs have no CNSS-matched villes, so
+  // wageLevel is null for them). Render what we have.
+  if (!popLevel) return null;
 
   const indicators: Indicator[] = [
     {
@@ -106,20 +110,30 @@ function deriveIndicators(
       note: 'Total residents in the FUA',
       value: fmtInt.format(popLevel.value),
       change: signedPct(pctChange(popLevel.prior, popLevel.value)),
-      rank: popLevel.rank,
-      rankOf: popLevel.rankOf,
+      rank: popLevel.rank.toString(),
       vsCasa: vsCasaShare(popLevel.casaShare),
     },
-    {
-      name: 'Daily formal wage',
-      note: 'Median CNSS-registered worker',
-      value: fmtMoney(wageLevel.value),
-      change: signedPct(pctChange(wageLevel.prior, wageLevel.value)),
-      rank: wageLevel.rank,
-      rankOf: wageLevel.rankOf,
-      vsCasa: vsCasaShare(wageLevel.casaShare),
-    },
-    {
+    wageLevel
+      ? {
+          name: 'Daily formal wage',
+          note: 'Median CNSS-registered worker',
+          value: fmtMoney(wageLevel.value),
+          change: signedPct(pctChange(wageLevel.prior, wageLevel.value)),
+          rank: wageLevel.rank.toString(),
+          vsCasa: vsCasaShare(wageLevel.casaShare),
+        }
+      : {
+          name: 'Daily formal wage',
+          note: 'No CNSS-matched ville — see notice above',
+          value: '—',
+          change: '—',
+          rank: '—',
+          vsCasa: '—',
+        },
+  ];
+
+  if (unempLevel) {
+    indicators.push({
       name: 'Unemployment',
       note: 'Share of the labor force',
       value: fmtPct(unempLevel.value),
@@ -127,11 +141,10 @@ function deriveIndicators(
       change: signedPp(
         unempLevel.prior == null ? null : unempLevel.value - unempLevel.prior,
       ),
-      rank: unempLevel.rank,
-      rankOf: unempLevel.rankOf,
+      rank: unempLevel.rank.toString(),
       vsCasa: vsCasaShare(unempLevel.casaShare),
-    },
-  ];
+    });
+  }
 
   if (complexity && complexity.length > 0) {
     const eci = makeEciIndicator(complexity, cityId);
@@ -161,8 +174,7 @@ function makeEciIndicator(
     note: 'ECI from CNSS worker-share specialization',
     value: fmtNum(me.eci_workers, 2),
     change: signedDelta(delta),
-    rank,
-    rankOf: cohort.length,
+    rank: rank.toString(),
     // ECI is a standardized index centered near 0, so a "% of Casablanca's
     // value" reading is misleading (sign flips, blows up near zero). Show "—".
     vsCasa: null,
@@ -173,7 +185,6 @@ type Level = {
   value: number;
   prior: number | null;
   rank: number;
-  rankOf: number;
   casaShare: number | null;
 };
 
@@ -195,5 +206,5 @@ function level(
   const rank = cohort.findIndex((r) => r.id === me.city_id) + 1;
   const casaValue = casa ? pick(casa) : null;
   const casaShare = casaValue && casaValue !== 0 ? (myValue / casaValue) * 100 : null;
-  return { value: myValue, prior, rank, rankOf: cohort.length, casaShare };
+  return { value: myValue, prior, rank, casaShare };
 }

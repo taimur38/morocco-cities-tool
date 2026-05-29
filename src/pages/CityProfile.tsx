@@ -52,6 +52,13 @@ export default function CityProfile() {
   const cityMedianWage =
     panel.data.find((r) => r.city_id === city.id && r.year === 2024)
       ?.cnss_median_daily_wage ?? null;
+  // A handful of FUAs (currently Deroua, Souk Sebt Oulad Nemma, M'rirt) have
+  // no ville in the CNSS registry — formal-sector employers in those areas
+  // file under a neighbouring ville. Detect once and gate the CNSS-derived
+  // chart blocks plus the top-of-page notice off this flag.
+  const hasCnss = panel.data.some(
+    (r) => r.city_id === city.id && r.cnss_workers != null,
+  );
 
   return (
     <article>
@@ -63,6 +70,17 @@ export default function CityProfile() {
         <h2 className="city-title">{city.name}</h2>
         <CitySelect rows={panel.data} current={slug} />
       </div>
+
+      {!hasCnss && (
+        <aside className="data-gap-notice">
+          <strong>No CNSS coverage for {city.name}.</strong> The social-security
+          registry has no ville matching this FUA's communes, so formal-sector
+          figures — wages, industry composition, complexity, and the
+          shift-share — are not shown. Workers from {city.name} most likely
+          report under a neighbouring CNSS ville. Census-based indicators
+          (population, unemployment, migration) below are unaffected.
+        </aside>
+      )}
 
       <div className="chart-block">
         <h4>What we mean by {city.name}</h4>
@@ -87,25 +105,27 @@ export default function CityProfile() {
       </p>
       <SectionLevels rows={panel.data} cityId={city.id} complexity={complexity.data} />
 
-      <div className="chart-block">
-        <h4>What {city.name} does for a living</h4>
-        <p className="chart-caption">
-          The city's 2024 industrial composition. Each rectangle is one CNSS industry, sized by
-          workers, grouped by NACE section. Toggle the color to view sectional kind,
-          industry-level economic complexity (PCI from the national product space), how this
-          city's daily wage in each industry compares to the cross-city median for that industry,
-          or the 2014–2024 wage growth (CAGR) within each industry.
-        </p>
-        {ssIndustry.data && (
-          <SectionOverviewTreemap
-            rows={ssIndustry.data}
-            complexity={industryComplexity.data}
-            cityId={city.id}
-            cityMedianWage={cityMedianWage}
-            translations={translations.data}
-          />
-        )}
-      </div>
+      {hasCnss && (
+        <div className="chart-block">
+          <h4>What {city.name} does for a living</h4>
+          <p className="chart-caption">
+            The city's 2024 industrial composition. Each rectangle is one CNSS industry, sized by
+            workers, grouped by NACE section. Toggle the color to view sectional kind,
+            industry-level economic complexity (PCI from the national product space), how this
+            city's daily wage in each industry compares to the cross-city median for that industry,
+            or the 2014–2024 wage growth (CAGR) within each industry.
+          </p>
+          {ssIndustry.data && (
+            <SectionOverviewTreemap
+              rows={ssIndustry.data}
+              complexity={industryComplexity.data}
+              cityId={city.id}
+              cityMedianWage={cityMedianWage}
+              translations={translations.data}
+            />
+          )}
+        </div>
+      )}
 
       {/* SECTION 2 — CHANGES */}
       <h3>2. How {city.name} has changed</h3>
@@ -175,8 +195,8 @@ export default function CityProfile() {
       {ss.error && <p className="error">Could not load shift-share: {ss.error.message}</p>}
       {!ss.loading && !cityShiftShare && (
         <p className="muted">
-          No shift-share data for this city — typically because no CNSS villes match it. The
-          three manual cities (Laayoune, Es-Semara, Tan Tan) fall in this bucket.
+          No shift-share for {city.name} — no CNSS-matched ville means there is
+          no formal-employment series to decompose.
         </p>
       )}
       {cityShiftShare && (
