@@ -8,3 +8,10 @@ dist/
 # Override the root *.html ignore — we need Vite's entry HTML tracked.
 !index.html
 !src/**/*.html
+
+# Override the root **/data/ ignore for src/data/ — that rule is meant for the
+# gitignored data snapshots (public/data/, repo data/), but it also swallows the
+# TypeScript data layer (loaders, hooks, types), which is source and must be
+# versioned. Re-include the directory, then its sources.
+!src/data/
+!src/data/*.ts
