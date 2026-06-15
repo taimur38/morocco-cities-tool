@@ -5,9 +5,10 @@ import {
   useNationalBase,
   type BaseFeature,
   type CityFeature,
+  type CommuneProps,
 } from '../../data/useCityGeo';
 
-type Variant = 'migration' | 'definition';
+type Variant = 'migration' | 'definition' | 'explorer';
 
 type Props = {
   slug: string;
@@ -26,10 +27,95 @@ const OCEAN = '#d6e6f0';
 // desaturated. Distinct from the cool grey of neighboring land without
 // becoming the loudest thing on the page.
 const DEFINITION_FILL = '#d6a8a8';
+// Sequential ramp for the explorer indicators — a single muted blue hue,
+// light (low) → deep (high). Distinct from the grey neighbouring land and
+// from the green/red diverging migration scale, and never the red accent.
+const SEQ_LO = '#e9eef2';
+const SEQ_HI = '#16527e';
 
 const WIDTH = 720;
 const HEIGHT = 480;
 const PAD = 0.4; // expand city bbox by 40% so neighbors are visible
+
+// --- Indicator dropdown (explorer variant) ------------------------------------
+// One entry per option in the "Color by" dropdown. Migration keeps its
+// diverging scale; every census level uses the sequential blue ramp. There is
+// deliberately no wage option — CNSS wages are matched at the ville level, not
+// the commune, so there is no honest commune-level wage to map.
+type IndicatorKey =
+  | 'migration'
+  | 'unemployment'
+  | 'lfp'
+  | 'tertiary'
+  | 'population'
+  | 'slum';
+
+type IndicatorDef = {
+  key: IndicatorKey;
+  label: string;
+  kind: 'diverging' | 'sequential';
+  accessor: (p: CommuneProps) => number | null;
+  fmt: (v: number) => string;
+  log?: boolean; // log-scale the sequential ramp (population is heavily skewed)
+  hint: string; // legend note explaining the colour direction
+};
+
+const fmtPct1 = (v: number) => `${v.toFixed(1)}%`;
+const fmtSignedPct1 = (v: number) =>
+  `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
+const fmtPop = (v: number) => Math.round(v).toLocaleString('en-US');
+
+const INDICATORS: IndicatorDef[] = [
+  {
+    key: 'migration',
+    label: 'Net migration (10-yr)',
+    kind: 'diverging',
+    accessor: (p) => p.mig_10yr_net_pct,
+    fmt: fmtSignedPct1,
+    hint: 'Green = net inflow · Red = net outflow',
+  },
+  {
+    key: 'unemployment',
+    label: 'Unemployment rate',
+    kind: 'sequential',
+    accessor: (p) => p.unemployment_rate,
+    fmt: fmtPct1,
+    hint: 'Darker = higher unemployment',
+  },
+  {
+    key: 'lfp',
+    label: 'Labor-force participation',
+    kind: 'sequential',
+    accessor: (p) => p.lfp_rate,
+    fmt: fmtPct1,
+    hint: 'Darker = higher participation',
+  },
+  {
+    key: 'tertiary',
+    label: 'Tertiary education',
+    kind: 'sequential',
+    accessor: (p) => p.tertiary_pct,
+    fmt: fmtPct1,
+    hint: 'Adults with tertiary education · darker = higher',
+  },
+  {
+    key: 'population',
+    label: 'Population',
+    kind: 'sequential',
+    accessor: (p) => p.population,
+    fmt: fmtPop,
+    log: true,
+    hint: 'Legal population · log-scaled · darker = larger',
+  },
+  {
+    key: 'slum',
+    label: 'Slum housing share',
+    kind: 'sequential',
+    accessor: (p) => p.slum_pct,
+    fmt: fmtPct1,
+    hint: 'Households in slum housing · darker = higher',
+  },
+];
 
 // Diverging color scale: red for outflows, green for inflows. Anchored at zero,
 // but each side has its own saturation point — some cities have communes that
@@ -47,6 +133,28 @@ function colorForMig(
   }
   const t = negBound > 0 ? Math.min(1, -v / negBound) : 0;
   return blendHex(NEUTRAL, NEG, t);
+}
+
+// Sequential blue ramp over [min, max] for this city's communes. Optionally
+// log-scaled so a single very large commune (e.g. central Casablanca) doesn't
+// flatten everything else to the light end.
+function sequentialColor(
+  v: number | null | undefined,
+  min: number,
+  max: number,
+  log: boolean,
+): string {
+  if (v == null || !Number.isFinite(v)) return NEUTRAL;
+  let val = v;
+  let lo = min;
+  let hi = max;
+  if (log) {
+    val = Math.log(Math.max(v, 1));
+    lo = Math.log(Math.max(min, 1));
+    hi = Math.log(Math.max(max, 1));
+  }
+  const t = hi > lo ? Math.max(0, Math.min(1, (val - lo) / (hi - lo))) : 0.5;
+  return blendHex(SEQ_LO, SEQ_HI, t);
 }
 
 function blendHex(a: string, b: string, t: number): string {
@@ -104,6 +212,11 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
   const cityGeo = useCityGeo(slug);
   const baseGeo = useNationalBase();
   const [hover, setHover] = useState<{ x: number; y: number; f: CityFeature } | null>(null);
+
+  // Explorer-only: which indicator drives the commune fill. Defaults to
+  // population so the explorer opens on a different view than the dedicated
+  // net-migration map earlier on the page.
+  const [indicatorKey, setIndicatorKey] = useState<IndicatorKey>('population');
 
   // Drag-to-zoom: zoomBbox overrides the default city bbox when set;
   // dragRect is the in-progress selection in svg pixel coords.
@@ -228,19 +341,41 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
   ) as CityFeature[];
   const fua = cityGeo.data.features.find((f) => f.properties.kind === 'fua') ?? null;
 
-  // Derive asymmetric color bounds from this city's communes — two scales
-  // joined at zero. The negative side is mathematically bounded by −100% (you
-  // can't lose more than 100% of a base population); the positive side is
-  // unbounded but is anchored to whatever the local maximum happens to be.
+  // The active indicator: explorer reads the dropdown; migration is fixed to
+  // the diverging migration scale; definition has no indicator (rose fill).
+  const activeKey: IndicatorKey | null =
+    variant === 'explorer' ? indicatorKey : variant === 'migration' ? 'migration' : null;
+  const activeDef = activeKey ? INDICATORS.find((d) => d.key === activeKey) ?? null : null;
+
+  // Derive the colour domain for the active indicator from this city's communes.
+  // Diverging: two bounds joined at zero (the negative side is capped at −100%,
+  // the positive side anchored to the local maximum). Sequential: plain min/max.
   let negBound = 0;
   let posBound = 0;
-  for (const f of cityCommunes) {
-    const v = f.properties.mig_10yr_net_pct;
-    if (v == null || !Number.isFinite(v)) continue;
-    if (v < 0) negBound = Math.max(negBound, -v);
-    else posBound = Math.max(posBound, v);
+  let seqMin = Infinity;
+  let seqMax = -Infinity;
+  if (activeDef) {
+    for (const f of cityCommunes) {
+      const v = activeDef.accessor(f.properties);
+      if (v == null || !Number.isFinite(v)) continue;
+      if (activeDef.kind === 'diverging') {
+        if (v < 0) negBound = Math.max(negBound, -v);
+        else posBound = Math.max(posBound, v);
+      } else {
+        if (v < seqMin) seqMin = v;
+        if (v > seqMax) seqMax = v;
+      }
+    }
+    negBound = Math.min(100, negBound);
   }
-  negBound = Math.min(100, negBound);
+  const hasSeqDomain = Number.isFinite(seqMin) && Number.isFinite(seqMax);
+
+  function fillFor(p: CommuneProps): string {
+    if (!activeDef) return DEFINITION_FILL;
+    const v = activeDef.accessor(p);
+    if (activeDef.kind === 'diverging') return colorForMig(v, negBound, posBound);
+    return sequentialColor(v, seqMin, seqMax, !!activeDef.log);
+  }
 
   // Decide which city-commune labels to draw. Skip ones whose projected area is
   // tiny (< 28×14 px) so labels don't pile up on small communes.
@@ -257,184 +392,236 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
     labels.push({ x: cx, y: cy, text: name });
   }
 
+  const ariaLabel =
+    variant === 'definition'
+      ? `Map showing the communes that make up ${cityName}'s functional urban area`
+      : `Map of communes in ${cityName} colored by ${activeDef?.label ?? 'indicator'}`;
+
   return (
-    <div className="city-map">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        style={{
-          background: OCEAN,
-          display: 'block',
-          width: '100%',
-          height: 'auto',
-          aspectRatio: `${WIDTH} / ${HEIGHT}`,
-          cursor: 'crosshair',
-        }}
-        role="img"
-        aria-label={
-          variant === 'migration'
-            ? `Map of communes in ${cityName} colored by net migration`
-            : `Map showing the communes that make up ${cityName}'s functional urban area`
-        }
-        onMouseDown={handleSvgMouseDown}
-      >
-        {/* Layer 1 — national base, drawn in light grey (land) */}
-        <g>
-          {visibleBase.map((f) => (
-            <path
-              key={f.properties.commune_id}
-              d={pathFn(f) ?? ''}
-              fill={cityCommuneIds.has(f.properties.commune_id) ? 'transparent' : LAND}
-              stroke={LAND_STROKE}
-              strokeWidth={0.4}
-            />
-          ))}
-        </g>
-
-        {/* Layer 2 — city communes, colored by migration */}
-        <g>
-          {cityCommunes.map((f) => (
-            <path
-              key={f.properties.commune_id ?? Math.random()}
-              d={pathFn(f) ?? ''}
-              fill={
-                variant === 'migration'
-                  ? colorForMig(f.properties.mig_10yr_net_pct, negBound, posBound)
-                  : DEFINITION_FILL
-              }
-              stroke="#fff"
-              strokeWidth={0.6}
-              onMouseMove={(e) => {
-                if (dragging) return; // suppress hover while drawing zoom rectangle
-                const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
-                setHover({
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
-                  f,
-                });
-              }}
-              onMouseLeave={() => setHover(null)}
-            />
-          ))}
-        </g>
-
-        {/* Layer 3 — FUA boundary on top */}
-        {fua && (
-          <path
-            d={pathFn(fua) ?? ''}
-            fill="none"
-            stroke={BOUNDARY}
-            strokeWidth={1.5}
-            strokeDasharray="4 3"
-            pointerEvents="none"
-          />
-        )}
-
-        {/* Layer 4 — commune labels */}
-        <g pointerEvents="none">
-          {labels.map((l, i) => (
-            <text
-              key={i}
-              x={l.x}
-              y={l.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              style={{
-                fontSize: 9.5,
-                fontFamily: 'Source Sans 3, sans-serif',
-                fill: '#1a1a1a',
-                paintOrder: 'stroke',
-                stroke: '#fff',
-                strokeWidth: 2.5,
-                strokeLinejoin: 'round',
-              }}
+    <div className="city-map-wrap">
+      {variant === 'explorer' && (
+        <div className="chart-toolbar">
+          <label className="chart-toolbar-control">
+            Color by
+            <select
+              className="chart-toolbar-select"
+              value={indicatorKey}
+              onChange={(e) => setIndicatorKey(e.target.value as IndicatorKey)}
             >
-              {l.text}
-            </text>
-          ))}
-        </g>
-
-        {/* Layer 5 — drag-to-zoom rectangle */}
-        {dragRect && (
-          <rect
-            x={Math.min(dragRect.x0, dragRect.x1)}
-            y={Math.min(dragRect.y0, dragRect.y1)}
-            width={Math.abs(dragRect.x1 - dragRect.x0)}
-            height={Math.abs(dragRect.y1 - dragRect.y0)}
-            fill="rgba(26, 26, 26, 0.06)"
-            stroke="#1a1a1a"
-            strokeWidth={1}
-            strokeDasharray="3 3"
-            pointerEvents="none"
-          />
-        )}
-      </svg>
-
-      {hover && !dragging && (
-        <div className="map-tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
-          <strong>{hover.f.properties.commune_name ?? '—'}</strong>
-          {variant === 'migration' && (
-            <div>
-              Net migration:{' '}
-              {hover.f.properties.mig_10yr_net_pct != null
-                ? `${hover.f.properties.mig_10yr_net_pct.toFixed(1)}%`
-                : '—'}
-            </div>
-          )}
+              {INDICATORS.map((d) => (
+                <option key={d.key} value={d.key}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="chart-toolbar-hint">
+            {cityCommunes.length} commune{cityCommunes.length === 1 ? '' : 's'} · census 2024
+          </span>
         </div>
       )}
 
-      {zoomBbox && (
-        <button
-          type="button"
-          className="map-reset-zoom"
-          onClick={() => setZoomBbox(null)}
+      <div className="city-map">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="xMidYMid meet"
+          style={{
+            background: OCEAN,
+            display: 'block',
+            width: '100%',
+            height: 'auto',
+            aspectRatio: `${WIDTH} / ${HEIGHT}`,
+            cursor: 'crosshair',
+          }}
+          role="img"
+          aria-label={ariaLabel}
+          onMouseDown={handleSvgMouseDown}
         >
-          Reset zoom
-        </button>
-      )}
+          {/* Layer 1 — national base, drawn in light grey (land) */}
+          <g>
+            {visibleBase.map((f) => (
+              <path
+                key={f.properties.commune_id}
+                d={pathFn(f) ?? ''}
+                fill={cityCommuneIds.has(f.properties.commune_id) ? 'transparent' : LAND}
+                stroke={LAND_STROKE}
+                strokeWidth={0.4}
+              />
+            ))}
+          </g>
 
-      <MapLegend
-        variant={variant}
-        communeCount={cityCommunes.length}
-        negBound={negBound}
-        posBound={posBound}
-        zoomed={zoomBbox != null}
-      />
+          {/* Layer 2 — city communes, colored by the active indicator */}
+          <g>
+            {cityCommunes.map((f) => (
+              <path
+                key={f.properties.commune_id ?? Math.random()}
+                d={pathFn(f) ?? ''}
+                fill={fillFor(f.properties)}
+                stroke="#fff"
+                strokeWidth={0.6}
+                onMouseMove={(e) => {
+                  if (dragging) return; // suppress hover while drawing zoom rectangle
+                  const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement).getBoundingClientRect();
+                  setHover({
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
+                    f,
+                  });
+                }}
+                onMouseLeave={() => setHover(null)}
+              />
+            ))}
+          </g>
+
+          {/* Layer 3 — FUA boundary on top */}
+          {fua && (
+            <path
+              d={pathFn(fua) ?? ''}
+              fill="none"
+              stroke={BOUNDARY}
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              pointerEvents="none"
+            />
+          )}
+
+          {/* Layer 4 — commune labels */}
+          <g pointerEvents="none">
+            {labels.map((l, i) => (
+              <text
+                key={i}
+                x={l.x}
+                y={l.y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                style={{
+                  fontSize: 9.5,
+                  fontFamily: 'Source Sans 3, sans-serif',
+                  fill: '#1a1a1a',
+                  paintOrder: 'stroke',
+                  stroke: '#fff',
+                  strokeWidth: 2.5,
+                  strokeLinejoin: 'round',
+                }}
+              >
+                {l.text}
+              </text>
+            ))}
+          </g>
+
+          {/* Layer 5 — drag-to-zoom rectangle */}
+          {dragRect && (
+            <rect
+              x={Math.min(dragRect.x0, dragRect.x1)}
+              y={Math.min(dragRect.y0, dragRect.y1)}
+              width={Math.abs(dragRect.x1 - dragRect.x0)}
+              height={Math.abs(dragRect.y1 - dragRect.y0)}
+              fill="rgba(26, 26, 26, 0.06)"
+              stroke="#1a1a1a"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+              pointerEvents="none"
+            />
+          )}
+        </svg>
+
+        {hover && !dragging && (
+          <div className="map-tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
+            <strong>{hover.f.properties.commune_name ?? '—'}</strong>
+            {activeDef && (
+              <div>
+                {activeDef.label}:{' '}
+                {(() => {
+                  const v = activeDef.accessor(hover.f.properties);
+                  return v != null && Number.isFinite(v) ? activeDef.fmt(v) : '—';
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {zoomBbox && (
+          <button
+            type="button"
+            className="map-reset-zoom"
+            onClick={() => setZoomBbox(null)}
+          >
+            Reset zoom
+          </button>
+        )}
+
+        <MapLegend
+          activeDef={activeDef}
+          communeCount={cityCommunes.length}
+          negBound={negBound}
+          posBound={posBound}
+          seqMin={seqMin}
+          seqMax={seqMax}
+          hasSeqDomain={hasSeqDomain}
+          zoomed={zoomBbox != null}
+        />
+      </div>
     </div>
   );
 }
 
 function MapLegend({
-  variant,
+  activeDef,
   communeCount,
   negBound,
   posBound,
+  seqMin,
+  seqMax,
+  hasSeqDomain,
   zoomed,
 }: {
-  variant: Variant;
+  activeDef: IndicatorDef | null;
   communeCount: number;
   negBound: number;
   posBound: number;
+  seqMin: number;
+  seqMax: number;
+  hasSeqDomain: boolean;
   zoomed: boolean;
 }) {
-  if (variant === 'definition') {
+  const zoomNote = zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area';
+  const baseNote = 'Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary';
+
+  // Definition variant — no indicator, just the explainer.
+  if (!activeDef) {
     return (
       <div className="map-legend">
         <div className="map-legend-note">
-          {communeCount} commune{communeCount === 1 ? '' : 's'} make up this city ·
-          Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary
+          {communeCount} commune{communeCount === 1 ? '' : 's'} make up this city · {baseNote}
         </div>
-        <div className="map-legend-note">
-          {zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area'}
-        </div>
+        <div className="map-legend-note">{zoomNote}</div>
       </div>
     );
   }
-  // Two scales joined at the zero point. The bar is a single CSS gradient so
-  // the transition reads as one seamless ramp; the zero label is absolutely
-  // positioned at the proportional zero point rather than always centered.
+
+  // Sequential indicator — single blue ramp light→deep over the city's range.
+  if (activeDef.kind === 'sequential') {
+    return (
+      <div className="map-legend">
+        <div
+          className="map-legend-bar"
+          style={{ background: `linear-gradient(to right, ${SEQ_LO} 0%, ${SEQ_HI} 100%)` }}
+        />
+        <div className="map-legend-labels">
+          <span>{hasSeqDomain ? activeDef.fmt(seqMin) : '—'}</span>
+          <span>{hasSeqDomain ? activeDef.fmt(seqMax) : 'no data'}</span>
+        </div>
+        <div className="map-legend-note">{activeDef.hint}</div>
+        <div className="map-legend-note">{baseNote}</div>
+        <div className="map-legend-note">{zoomNote}</div>
+      </div>
+    );
+  }
+
+  // Diverging indicator (migration) — two scales joined at the zero point. The
+  // bar is a single CSS gradient so the transition reads as one seamless ramp;
+  // the zero label is positioned at the proportional zero point.
   const total = negBound + posBound;
   const zeroPct = total > 0 ? (negBound / total) * 100 : 50;
   const fmt = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%`;
@@ -459,12 +646,8 @@ function MapLegend({
         </span>
         <span>{fmt(posBound)} (inflow)</span>
       </div>
-      <div className="map-legend-note">
-        Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary
-      </div>
-      <div className="map-legend-note">
-        {zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area'}
-      </div>
+      <div className="map-legend-note">{baseNote}</div>
+      <div className="map-legend-note">{zoomNote}</div>
     </div>
   );
 }

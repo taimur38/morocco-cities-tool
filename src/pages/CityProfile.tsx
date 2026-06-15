@@ -264,6 +264,30 @@ export default function CityProfile() {
           </div>
         </>
       )}
+
+      {/* SECTION 3 — COMMUNE EXPLORER */}
+      <h3>3. {city.name} commune by commune</h3>
+      <p>
+        The maps above each told one story. This last one is open-ended:
+        pick an indicator and the communes that make up {city.name} shade
+        by it. Net migration is the within-city flow already seen above;
+        the rest are 2024 census levels — how tight the labor market is
+        (unemployment, participation), the human capital on hand (tertiary
+        education), where the city's mass sits (population), and housing
+        deprivation (slum share). Together they sketch why people sort the
+        way they do inside the city. Formal wages are absent on purpose:
+        CNSS pay is recorded at the ville level, not the commune, so there
+        is no honest commune-level wage to map.
+      </p>
+      <div className="chart-block">
+        <h4>Explore {city.name}'s communes by indicator</h4>
+        <p className="chart-caption">
+          Each commune in the FUA (dashed boundary) shaded by the selected
+          indicator. Use the dropdown to switch indicators; hover a commune for
+          its value, and drag to zoom.
+        </p>
+        <CityMap slug={slug} cityName={city.name} variant="explorer" />
+      </div>
     </article>
   );
 }
