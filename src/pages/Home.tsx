@@ -30,7 +30,7 @@ export default function Home() {
       </p>
       <p>
         To make progress on this topic, it is necessary to define
-        (1) the definitions and boundaries of a city, and (2) a
+        (1) the boundaries of a city, and (2) a
         framework to assess economic performance at the subnational
         level. In thinking about the economic growth of cities, it is
         useful to consider a city as an integrated labor market
