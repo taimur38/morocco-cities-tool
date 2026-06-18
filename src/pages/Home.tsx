@@ -30,7 +30,7 @@ export default function Home() {
       </p>
       <p>
         To make progress on this topic, it is necessary to define
-        (1) the boundaries of a city, and (2) a
+        (1) the boundaries of a city and (2) a
         framework to assess economic performance at the subnational
         level. In thinking about the economic growth of cities, it is
         useful to consider a city as an integrated labor market
@@ -70,22 +70,31 @@ export default function Home() {
         ). We apply this framework in order to have a consistent
         process for defining the boundary of a city in Morocco, and
         aggregate administrative data for communes intersecting with
-        this boundary to form the unit of analysis for our study. As
-        an example, <CityLink name="Casablanca" /> is visualized
-        below: the dashed
+        this boundary to form the unit of analysis for our study. The
+        boundary estimations are from satellite data as of 2015, and
+        after 10 years of continuous development are arguably out of
+        date, and we aim to improve on these boundaries in future
+        work. We make four important manual corrections — we assign
+        Ain el Aouda and Kenitra to the Rabat FUA, and we assign
+        Deroua and Berrechid to the Casablanca FUA. While the boundary
+        definitions used here can be improved, and it is an important
+        question to refine them, we continue with our analysis at this
+        level as it establishes a solid and systematic frame of
+        reference to operate from. As an example,{' '}
+        <CityLink name="Agadir" /> is visualized below: the dashed
         boundary comes from the GHSL definition, and the labelled
         communes are those that our process then aggregates to form
         definitions for each city. Each city's boundaries can be
         seen on its respective city profile page.
       </p>
       <div className="chart-block">
-        <h4>The Casablanca functional urban area</h4>
+        <h4>The Agadir functional urban area</h4>
         <p className="chart-caption">
           Dashed line: GHSL functional area. Shaded polygons: the
           constituent communes our analysis aggregates into a single
           city.
         </p>
-        <CityMap slug="casablanca" cityName="Casablanca" variant="definition" />
+        <CityMap slug="agadir" cityName="Agadir" variant="definition" />
       </div>
 
       {loading && <p className="loading">Loading panel data…</p>}
@@ -114,14 +123,14 @@ export default function Home() {
             city might be getting something right. According to HCP
             data, roughly one in five Moroccans now lives in a
             different commune than they did in 2014. The graph below
-            shows the top 10 gainers and bottom 10 losers among
-            Morocco's functional urban areas.
+            shows the top 10 gainers and bottom 10 losers in terms of
+            growth rate among Morocco's functional urban areas.
           </p>
           <div className="chart-block">
             <h4>Net internal migration, 2014–2024</h4>
             <p className="chart-caption">
-              Top 10 gainers and bottom 10 losers among Morocco's 66
-              functional urban areas. Expressed as a percent of the
+              Top 10 gainers and bottom 10 losers among the 59 cities
+              in our analysis. Expressed as a percent of the
               2014 resident population — i.e. "Tangier gained 54% of
               its 2014 population on net through migration."
             </p>
@@ -130,23 +139,19 @@ export default function Home() {
           <p>
             Of the big cities, <CityLink name="Tangier" /> is
             extremely fast growing, followed by{' '}
-            <CityLink name="Marrakesh" />, <CityLink name="Fez" /> and{' '}
-            <CityLink name="Agadir" />. Cities in the southern
+            <CityLink name="Marrakesh" />, <CityLink name="Agadir" />,{' '}
+            <CityLink name="Fez" />, <CityLink name="Casablanca" /> and{' '}
+            <CityLink name="Rabat" />. Cities in the southern
             provinces like <CityLink name="Dakhla" /> and{' '}
-            <CityLink name="Boujdour" /> also make the top ten.{' '}
-            <CityLink name="Ain el Aouda" />,{' '}
-            <CityLink name="Deroua" /> and{' '}
-            <CityLink name="Berrechid" /> have all been rapidly
-            growing on the outskirts of <CityLink name="Rabat" /> and{' '}
-            <CityLink name="Casablanca" />, signaling that there may
-            be limiting factors to growth at the core of those major
-            cities.
+            <CityLink name="Boujdour" /> also make the top ten, and{' '}
+            <CityLink name="Tétouan" /> rounds out the list as another
+            fast-growing city in the North by Tangier.
           </p>
           <p>
             A closer look at the migration patterns within the
             communes considered as part of{' '}
             <CityLink name="Casablanca" /> and <CityLink name="Rabat" />{' '}
-            under the FUA definition confirms this picture: growth in
+            under the FUA definition confirms that growth in
             the central communes has been low while the surrounding
             areas have been growing rapidly. One hypothesis is that
             the cost of living at the center of the city has been
@@ -336,7 +341,7 @@ export default function Home() {
             rising unemployment can sometimes be a symptom of
             relative success rather than failure. Combining these
             indicators with net migration helps disambiguate the two
-            stories. <CityLink name="Tetouan" />, for example, has
+            stories. <CityLink name="Tétouan" />, for example, has
             seen significant net in-migration alongside a rise in
             unemployment, more consistent with the interpretation
             that it is a relatively attractive place to be
@@ -363,7 +368,7 @@ export default function Home() {
             tool that extends to every city in the Functional Urban
             Area database from the Global Human Settlement Layer.
             Read together, these indicators can recast outcomes that
-            look unfavorable in isolation — <CityLink name="Tetouan" />'s
+            look unfavorable in isolation — <CityLink name="Tétouan" />'s
             rising unemployment, for instance — as plausible signals
             of relative attractiveness rather than decline.
           </p>

@@ -6,7 +6,7 @@
 // This is intentionally a copy (not a symlink) so the bundled /dist works on any host.
 // Re-run whenever the upstream pipeline regenerates outputs.
 
-import { mkdirSync, copyFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, copyFileSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,6 +71,10 @@ const GEO_SRC = join(SRC, 'city_maps_geo');
 const GEO_DEST = join(DEST, 'city_maps_geo');
 if (existsSync(GEO_SRC) && statSync(GEO_SRC).isDirectory()) {
   mkdirSync(GEO_DEST, { recursive: true });
+  // Mirror the source: drop stale geojsons (e.g. cities removed by merges) first.
+  for (const name of readdirSync(GEO_DEST)) {
+    if (name.endsWith('.geojson') || name === 'index.json') unlinkSync(join(GEO_DEST, name));
+  }
   let geoCount = 0;
   for (const name of readdirSync(GEO_SRC)) {
     if (name.endsWith('.geojson') || name === 'index.json') {
