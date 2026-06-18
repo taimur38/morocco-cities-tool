@@ -45,8 +45,11 @@ const PAD = 0.4; // expand city bbox by 40% so neighbors are visible
 type IndicatorKey =
   | 'migration'
   | 'unemployment'
+  | 'female_unemployment'
   | 'lfp'
+  | 'female_lfp'
   | 'tertiary'
+  | 'dependency'
   | 'population'
   | 'slum';
 
@@ -64,6 +67,8 @@ const fmtPct1 = (v: number) => `${v.toFixed(1)}%`;
 const fmtSignedPct1 = (v: number) =>
   `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
 const fmtPop = (v: number) => Math.round(v).toLocaleString('en-US');
+// Dependency ratio is a count per 100, not a percentage.
+const fmtRatio1 = (v: number) => `${v.toFixed(1)} per 100`;
 
 const INDICATORS: IndicatorDef[] = [
   {
@@ -83,6 +88,14 @@ const INDICATORS: IndicatorDef[] = [
     hint: 'Darker = higher unemployment',
   },
   {
+    key: 'female_unemployment',
+    label: 'Female unemployment rate',
+    kind: 'sequential',
+    accessor: (p) => p.female_unemployment_rate,
+    fmt: fmtPct1,
+    hint: 'Darker = higher female unemployment',
+  },
+  {
     key: 'lfp',
     label: 'Labor-force participation',
     kind: 'sequential',
@@ -91,12 +104,28 @@ const INDICATORS: IndicatorDef[] = [
     hint: 'Darker = higher participation',
   },
   {
+    key: 'female_lfp',
+    label: 'Female labor-force participation',
+    kind: 'sequential',
+    accessor: (p) => p.female_lfp_rate,
+    fmt: fmtPct1,
+    hint: 'Women in the labor force · darker = higher',
+  },
+  {
     key: 'tertiary',
     label: 'Tertiary education',
     kind: 'sequential',
     accessor: (p) => p.tertiary_pct,
     fmt: fmtPct1,
     hint: 'Adults with tertiary education · darker = higher',
+  },
+  {
+    key: 'dependency',
+    label: 'Dependency ratio',
+    kind: 'sequential',
+    accessor: (p) => p.dependency_ratio,
+    fmt: fmtRatio1,
+    hint: 'Dependents per 100 working-age · darker = higher',
   },
   {
     key: 'population',

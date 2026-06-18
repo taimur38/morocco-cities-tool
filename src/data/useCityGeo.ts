@@ -10,8 +10,12 @@ export type CommuneProps = {
   // the indicator dropdown on the explorer map. Null where the census has no
   // value for a commune. No wage field: CNSS wages are ville-level, not commune.
   unemployment_rate: number | null;
+  female_unemployment_rate: number | null;
   lfp_rate: number | null;
+  female_lfp_rate: number | null;
   tertiary_pct: number | null;
+  // Conventional age-dependency ratio: dependents per 100 working-age people.
+  dependency_ratio: number | null;
   population: number | null;
   slum_pct: number | null;
 };
