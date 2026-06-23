@@ -15,10 +15,12 @@ import type { CityPanelRow } from '../../data/types';
 import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
 import { fmtNum } from '../../lib/format';
 
-type Metric = 'wage_median' | 'wage_mean' | 'unemp';
+type Metric = 'wage_median' | 'wage_mean' | 'unemp' | 'wage_premium_fe';
 
-const isWage = (m: Metric): m is 'wage_median' | 'wage_mean' =>
-  m === 'wage_median' || m === 'wage_mean';
+// Metrics measured in annualized % (vs. the unemployment Δ, in pp). Wage premium
+// growth is also a %/yr rate, so it shares the wage formatting and tooltip wording.
+const isPct = (m: Metric): m is 'wage_median' | 'wage_mean' | 'wage_premium_fe' =>
+  m === 'wage_median' || m === 'wage_mean' || m === 'wage_premium_fe';
 
 type Point = {
   city_id: number;
@@ -27,12 +29,18 @@ type Point = {
   wageMedianCagr: number;
   wageMeanCagr: number;
   unempDelta: number;
+  // Annualized change in the two-way (city + industry) fixed-effects wage premium,
+  // computed upstream. Null for cities absent from the regression's coverage.
+  premiumFe: number | null;
 };
 
 type Props = {
   rows: CityPanelRow[];
   highlightCityId?: number;
   defaultMetric?: Metric;
+  // Per-city wage_premium_fe_growth. When provided, a "Wage-premium growth" option
+  // appears in the Y-axis toggle; omit to hide it.
+  feGrowthByCity?: Map<number, number>;
 };
 
 type Domain = { x: [number, number]; y: [number, number] };
@@ -44,20 +52,28 @@ const BASE = '#1a1a1a';
 const metricLabel = (m: Metric): string => {
   if (m === 'wage_median') return 'CNSS median daily wage, CAGR 2014–2024 (%)';
   if (m === 'wage_mean') return 'CNSS mean daily wage, CAGR 2014–2024 (%)';
+  if (m === 'wage_premium_fe') return 'Wage-premium growth, regression FE (%/yr)';
   return 'Δ unemployment rate, 2014→2024 (pp)';
 };
 
 const TICK_FMT: Record<Metric, (v: number) => string> = {
   wage_median: (v) => `${v.toFixed(1)}%`,
   wage_mean: (v) => `${v.toFixed(1)}%`,
+  wage_premium_fe: (v) => `${v.toFixed(1)}%`,
   unemp: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`,
 };
 
-const yOf = (p: Point, m: Metric): number =>
-  m === 'wage_median' ? p.wageMedianCagr : m === 'wage_mean' ? p.wageMeanCagr : p.unempDelta;
+const yOf = (p: Point, m: Metric): number | null =>
+  m === 'wage_median'
+    ? p.wageMedianCagr
+    : m === 'wage_mean'
+    ? p.wageMeanCagr
+    : m === 'wage_premium_fe'
+    ? p.premiumFe
+    : p.unempDelta;
 
 const tooltipFmt = (p: Point, m: Metric): string => {
-  if (isWage(m)) {
+  if (isPct(m)) {
     const v = yOf(p, m);
     return v == null ? '—' : `${v.toFixed(1)}% / yr`;
   }
@@ -70,7 +86,9 @@ export default function MigrationVsLaborOutcome({
   rows,
   highlightCityId,
   defaultMetric = 'unemp',
+  feGrowthByCity,
 }: Props) {
+  const hasFe = !!feGrowthByCity && feGrowthByCity.size > 0;
   const [metric, setMetric] = useState<Metric>(defaultMetric);
 
   const { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig } = useMemo(() => {
@@ -102,6 +120,9 @@ export default function MigrationVsLaborOutcome({
           wageMedianCagr: cMed,
           wageMeanCagr: cMean,
           unempDelta: u24 - u14,
+          // Premium FE growth is optional coverage, so it's attached as a nullable
+          // field rather than gating a city out of the (stable) data array.
+          premiumFe: feGrowthByCity?.get(p.city_id) ?? null,
         };
       })
       .filter((p): p is Point => p !== null);
@@ -162,7 +183,7 @@ export default function MigrationVsLaborOutcome({
         : migsSorted[(mN - 1) / 2];
 
     return { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig };
-  }, [rows]);
+  }, [rows, feGrowthByCity]);
 
   // Map points to the active Y value for the current metric. No filtering
   // here: points already requires every metric to be present, so the array
@@ -183,7 +204,9 @@ export default function MigrationVsLaborOutcome({
       ? natWageMedianCagr
       : metric === 'wage_mean'
         ? natWageMeanCagr
-        : natUnempDelta;
+        : metric === 'wage_premium_fe'
+          ? 0 // premium growth is already a deviation from the national pace
+          : natUnempDelta;
 
   const [zoom, setZoom] = useState<Domain | null>(null);
   const [drag, setDrag] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -198,6 +221,7 @@ export default function MigrationVsLaborOutcome({
     if (!zoom) return active;
     return active.filter(
       (p) =>
+        p.y != null &&
         p.migration >= zoom.x[0] &&
         p.migration <= zoom.x[1] &&
         p.y >= zoom.y[0] &&
@@ -208,15 +232,21 @@ export default function MigrationVsLaborOutcome({
   // Y axes have different scales — wage CAGR is on a ~10pp range, unemp Δ on a
   // ~20pp range. Use the visible window's span to normalize distance for
   // outlier labeling so the same number of cities get labeled either way.
+  // Points with a finite y for the active metric — premium FE growth has gaps in
+  // coverage, so the span/label math runs over the plottable subset.
+  const plottable = useMemo(
+    () => visiblePoints.filter((p): p is typeof p & { y: number } => p.y != null),
+    [visiblePoints],
+  );
   const cutoff = useMemo(() => {
-    if (visiblePoints.length === 0) return 0;
+    if (plottable.length === 0) return 0;
     const xSpan =
-      Math.max(...visiblePoints.map((p) => p.migration)) -
-      Math.min(...visiblePoints.map((p) => p.migration)) || 1;
+      Math.max(...plottable.map((p) => p.migration)) -
+      Math.min(...plottable.map((p) => p.migration)) || 1;
     const ySpan =
-      Math.max(...visiblePoints.map((p) => p.y)) -
-      Math.min(...visiblePoints.map((p) => p.y)) || 1;
-    const dists = visiblePoints
+      Math.max(...plottable.map((p) => p.y)) -
+      Math.min(...plottable.map((p) => p.y)) || 1;
+    const dists = plottable
       .map((p) =>
         Math.hypot(
           (p.migration - natMig) / xSpan,
@@ -226,9 +256,10 @@ export default function MigrationVsLaborOutcome({
       .sort((a, b) => b - a);
     const k = zoom ? Math.min(dists.length - 1, 7) : Math.min(dists.length - 1, 11);
     return dists[k] ?? 0;
-  }, [visiblePoints, natMig, natY, zoom]);
+  }, [plottable, natMig, natY, zoom]);
 
-  const labelFor = (p: Point & { y: number }) => {
+  const labelFor = (p: Point & { y: number | null }) => {
+    if (p.y == null) return '';
     if (p.city_id === highlightCityId) return p.city;
     if (zoom) {
       const inView =
@@ -239,11 +270,11 @@ export default function MigrationVsLaborOutcome({
       if (!inView) return '';
     }
     const xSpan =
-      Math.max(...visiblePoints.map((q) => q.migration)) -
-      Math.min(...visiblePoints.map((q) => q.migration)) || 1;
+      Math.max(...plottable.map((q) => q.migration)) -
+      Math.min(...plottable.map((q) => q.migration)) || 1;
     const ySpan =
-      Math.max(...visiblePoints.map((q) => q.y)) -
-      Math.min(...visiblePoints.map((q) => q.y)) || 1;
+      Math.max(...plottable.map((q) => q.y)) -
+      Math.min(...plottable.map((q) => q.y)) || 1;
     return Math.hypot((p.migration - natMig) / xSpan, (p.y - natY) / ySpan) >= cutoff
       ? p.city
       : '';
@@ -254,7 +285,7 @@ export default function MigrationVsLaborOutcome({
     .map((p) => ({ ...p, label: labelFor(p) }));
   const highlight = active
     .filter((p) => p.city_id === highlightCityId)
-    .map((p) => ({ ...p, label: p.city }));
+    .map((p) => ({ ...p, label: p.y == null ? '' : p.city }));
 
   const handleMouseDown = (e: MouseEvt) => {
     if (!e || e.xValue == null || e.yValue == null) return;
@@ -292,9 +323,11 @@ export default function MigrationVsLaborOutcome({
   const yDomain: [number | string, number | string] = zoom ? zoom.y : ['auto', 'auto'];
 
   const natYLabel =
-    metric === 'wage_median'
+    metric === 'wage_premium_fe'
+      ? 'national pace (0%)'
+      : metric === 'wage_median'
       ? `median ${natY.toFixed(1)}% / yr`
-      : isWage(metric)
+      : isPct(metric)
       ? `nat. avg ${natY.toFixed(1)}% / yr`
       : `nat. avg ${natY >= 0 ? '+' : ''}${natY.toFixed(1)} pp`;
 
@@ -310,6 +343,9 @@ export default function MigrationVsLaborOutcome({
           >
             <option value="wage_median">Median wage growth (CAGR, %)</option>
             <option value="wage_mean">Mean wage growth (CAGR, %)</option>
+            {hasFe && (
+              <option value="wage_premium_fe">Wage-premium growth (FE, %)</option>
+            )}
             <option value="unemp">Δ unemployment (pp)</option>
           </select>
         </label>
@@ -337,7 +373,6 @@ export default function MigrationVsLaborOutcome({
             type="number"
             dataKey="migration"
             name="Net migration"
-            unit="%"
             domain={xDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
@@ -352,7 +387,7 @@ export default function MigrationVsLaborOutcome({
           <YAxis
             type="number"
             dataKey="y"
-            name={isWage(metric) ? 'Wage CAGR' : 'Δ unemployment'}
+            name={isPct(metric) ? 'Wage CAGR' : 'Δ unemployment'}
             domain={yDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
@@ -406,8 +441,12 @@ export default function MigrationVsLaborOutcome({
                   <strong>{p.city}</strong>
                   <div>Net migration: {fmtNum(p.migration, 1)}%</div>
                   <div>
-                    {isWage(metric)
-                      ? `${metric === 'wage_median' ? 'Median' : 'Mean'} wage CAGR`
+                    {metric === 'wage_premium_fe'
+                      ? 'Wage-premium growth'
+                      : metric === 'wage_median'
+                      ? 'Median wage CAGR'
+                      : metric === 'wage_mean'
+                      ? 'Mean wage CAGR'
                       : 'Δ unemployment'}
                     : {tooltipFmt(p, metric)}
                   </div>

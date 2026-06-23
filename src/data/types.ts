@@ -80,6 +80,10 @@ export type CityShiftShareRow = {
   local_share: number;
   entry_share: number;
   growth_total: number;
+  // Annualized 2014→2024 change (%/yr) in the city's wage-premium fixed effect from
+  // a two-way (city + industry) WLS log-wage regression. The regression comparator
+  // for the client-side sum-of-log-ratios premium-growth measure.
+  wage_premium_fe_growth: number | null;
 };
 
 // One row per (city, industry), from generated/city_industry_shift_share.parquet.
@@ -93,6 +97,11 @@ export type CityIndustryShiftShareRow = {
   workers_2024: number;
   daily_wage_2014: number | null;
   daily_wage_2024: number | null;
+  // National days-weighted daily wage for this industry (constant within an
+  // industry across cities). Used to strip industry-composition effects out of a
+  // city's wage growth — see compositionAdjustedWageCagr in lib/derive.ts.
+  natl_daily_wage_2014: number | null;
+  natl_daily_wage_2024: number | null;
   national_share: number;
   industry_mix: number;
   local_share: number;

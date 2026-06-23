@@ -35,6 +35,17 @@ export default function CityProfile() {
     return { id: rows[0].city_id, name: cleanCityName(rows[0].city_name) };
   }, [panel.data, slug]);
 
+  // Per-city regression-FE wage-premium growth, for the labor-outcome scatter's
+  // wage-premium option.
+  const feGrowthByCity = useMemo(() => {
+    if (!ss.data) return undefined;
+    const m = new Map<number, number>();
+    for (const r of ss.data) {
+      if (r.wage_premium_fe_growth != null) m.set(r.city_id, r.wage_premium_fe_growth);
+    }
+    return m;
+  }, [ss.data]);
+
   if (panel.loading) return <p className="loading">Loading…</p>;
   if (panel.error) return <p className="error">{panel.error.message}</p>;
   if (!city || !panel.data) {
@@ -165,13 +176,15 @@ export default function CityProfile() {
         <p className="chart-caption">
           Each point is one city. {city.name} is highlighted in red. The Y axis
           toggle switches between median and mean wage growth (CAGR of CNSS
-          daily wage) and the 2014–2024 change in the unemployment rate. Dashed
-          lines mark the national norm on each axis.
+          daily wage), composition-adjusted wage-premium growth, and the
+          2014–2024 change in the unemployment rate. Dashed lines mark the
+          national norm on each axis.
         </p>
         <MigrationVsLaborOutcome
           rows={panel.data}
           highlightCityId={city.id}
           defaultMetric="wage_median"
+          feGrowthByCity={feGrowthByCity}
         />
       </div>
 

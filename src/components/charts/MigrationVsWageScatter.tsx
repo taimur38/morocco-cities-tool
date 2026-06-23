@@ -23,16 +23,83 @@ type Point = {
 
 type WageStat = 'median' | 'mean';
 
+// Y-axis measure. 'raw' = wage CAGR; 'fe' = annualized change in the city's two-way
+// (city + industry) fixed-effects wage premium, computed upstream. The latter needs
+// feGrowthByCity and is expressed as a deviation from national pace (0).
+type YMode = 'raw' | 'fe';
+
+const Y_AXIS_LABEL: Record<YMode, string> = {
+  raw: '', // filled in per-render (depends on wageStat)
+  fe: 'Wage-premium growth, regression FE (%/yr)',
+};
+
+const Y_TOOLTIP_LABEL: Record<YMode, string> = {
+  raw: 'Wage CAGR',
+  fe: 'FE premium growth',
+};
+
 type Props = {
   rows: CityPanelRow[];
   highlightCityId?: number;
   wageStat?: WageStat;
+  // Which measure to plot on the Y axis. 'raw' (default) = wage CAGR; 'fe' = the
+  // regression fixed-effects wage-premium growth, which requires feGrowthByCity.
+  yMode?: YMode;
+  // Cleaned display names (as produced by cleanCityName) that should always be
+  // labeled regardless of salience — e.g. cities the surrounding prose calls out.
+  alwaysLabel?: string[];
+  // The quadrant-interpretation legend below the chart. On by default; pass false
+  // to suppress it when the same legend already appears above (e.g. a second chart
+  // sharing the same quadrant framing).
+  showQuadrantLegend?: boolean;
+  // Per-city annualized change in the two-way (city + industry) fixed-effects wage
+  // premium (wage_premium_fe_growth, computed upstream). Required when yMode='fe';
+  // if absent the chart falls back to raw CAGR.
+  feGrowthByCity?: Map<number, number>;
 };
 
 type Domain = { x: [number, number]; y: [number, number] };
 
+// Horizontal placement of a city label relative to its dot. 'middle' centers the
+// text above the point; 'start'/'end' anchor it to the right/left so labels for
+// cities at the extreme edges of the plot stay inside the frame instead of being
+// clipped (e.g. Tangier on the far right, Ben Guerir on the far left).
+type Anchor = 'start' | 'middle' | 'end';
+type LabeledPoint = Point & { label: string; anchor: Anchor };
+
 const HIGHLIGHT = '#c64646';
 const BASE = '#1a1a1a';
+
+// Custom LabelList renderer: places each city name above its dot with an
+// edge-aware text anchor (see Anchor). Recharts hands us the point's viewBox
+// (x/y/width/height in pixels) and the entry index, which we use to look up the
+// matching datum — and its precomputed anchor — in `arr`.
+const cityLabelContent =
+  (arr: LabeledPoint[], style: { fontSize: number; fontWeight?: number; fill: string }) =>
+  (props: {
+    // Recharts' ViewBox is a Cartesian | Polar union; we only use the Cartesian
+    // fields but include cx/cy so the type stays assignable from the union.
+    viewBox?: { x?: number; y?: number; width?: number; height?: number; cx?: number; cy?: number };
+    index?: number;
+  }) => {
+    const { viewBox, index } = props;
+    if (!viewBox || index == null || viewBox.x == null || viewBox.y == null) return null;
+    const d = arr[index];
+    if (!d || !d.label) return null;
+    const cx = viewBox.x + (viewBox.width ?? 0) / 2;
+    // Nudge edge labels a few px off the dot so the text doesn't sit on the point.
+    const dx = d.anchor === 'end' ? -4 : d.anchor === 'start' ? 4 : 0;
+    return (
+      <text
+        x={cx + dx}
+        y={viewBox.y - 6}
+        textAnchor={d.anchor}
+        style={{ fontSize: style.fontSize, fontWeight: style.fontWeight, fill: style.fill }}
+      >
+        {d.label}
+      </text>
+    );
+  };
 
 // Recharts mouse-event payload (their type isn't exported nicely).
 type MouseEvt = {
@@ -53,7 +120,20 @@ export default function MigrationVsWageScatter({
   rows,
   highlightCityId,
   wageStat = 'mean',
+  yMode = 'raw',
+  alwaysLabel,
+  showQuadrantLegend = true,
+  feGrowthByCity,
 }: Props) {
+  const alwaysLabelKey = (alwaysLabel ?? []).join('|');
+  const hasFe = !!feGrowthByCity && feGrowthByCity.size > 0;
+  // Fall back to raw if the requested mode's data isn't available, so we can't
+  // strand on an empty derived view.
+  const mode: YMode = yMode === 'fe' && !hasFe ? 'raw' : yMode;
+  const isDeriv = mode !== 'raw';
+
+  const yByCity = mode === 'fe' ? feGrowthByCity ?? null : null;
+
   const { points, natWageCagr, natMig } = useMemo(() => {
     // Require both wage statistics (and migration) so the data array stays
     // stable across the median/mean toggle. Recharts animates scatter points
@@ -72,23 +152,30 @@ export default function MigrationVsWageScatter({
           10,
         );
         const m = p.r2024.mig_10yr_net_pct;
-        if (cMed == null || cMean == null || m == null) return null;
+        // In a derived mode the Y value comes from the per-city measure instead of
+        // the raw wage CAGR; require whichever one we plot.
+        const derived = isDeriv ? yByCity?.get(p.city_id) ?? null : null;
+        const wageCagr = isDeriv ? derived : wageStat === 'median' ? cMed : cMean;
+        if (wageCagr == null || m == null) return null;
         return {
           city_id: p.city_id,
           city: cleanCityName(p.city_name),
           migration: m as number,
-          wageCagr: wageStat === 'median' ? cMed : cMean,
+          wageCagr,
         };
       })
       .filter((p): p is Point => p !== null);
 
-    // National wage CAGR reference. For mean wages we use the days-weighted
-    // national average (sum_salary / sum_days) — the wage a typical
-    // formal-sector worker actually saw. For median wages we use the
-    // cross-city median CAGR, since a national median can't be computed by
-    // summing city-level aggregates.
+    // National wage reference line. In a derived mode the measure is already a
+    // deviation from national pace, so the benchmark is 0 by construction. For
+    // raw mean wages we use the days-weighted national average (sum_salary /
+    // sum_days) — the wage a typical formal-sector worker actually saw. For raw
+    // median wages we use the cross-city median CAGR, since a national median
+    // can't be computed by summing city-level aggregates.
     let natWageCagr: number;
-    if (wageStat === 'mean') {
+    if (isDeriv) {
+      natWageCagr = 0;
+    } else if (wageStat === 'mean') {
       const agg = (year: number) => {
         const ys = rows.filter((r) => r.year === year);
         const sal = ys.reduce((s, r) => s + (r.cnss_salary ?? 0), 0);
@@ -116,7 +203,7 @@ export default function MigrationVsWageScatter({
         : migsSorted[(mN - 1) / 2];
 
     return { points, natWageCagr, natMig };
-  }, [rows, wageStat]);
+  }, [rows, wageStat, isDeriv, yByCity]);
 
   const [zoom, setZoom] = useState<Domain | null>(null);
   const [drag, setDrag] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -135,39 +222,99 @@ export default function MigrationVsWageScatter({
     );
   }, [points, zoom]);
 
-  // Label points furthest from the national-average origin within the visible
-  // window, plus the highlighted city. Both axes are in percent units, so
-  // distance is computed in those units (with a 5× scale on Y to reflect that
-  // wage CAGR varies on a tighter range than migration).
-  const cutoff = useMemo(() => {
-    const dists = visiblePoints
-      .map((p) => Math.hypot(p.migration - natMig, (p.wageCagr - natWageCagr) * 5))
-      .sort((a, b) => b - a);
-    const k = zoom ? Math.min(dists.length - 1, 7) : Math.min(dists.length - 1, 11);
-    return dists[k] ?? 0;
-  }, [visiblePoints, natWageCagr, natMig, zoom]);
-
-  const labelFor = (p: Point) => {
-    if (p.city_id === highlightCityId) return p.city;
-    if (zoom) {
-      const inView =
-        p.migration >= zoom.x[0] &&
-        p.migration <= zoom.x[1] &&
-        p.wageCagr >= zoom.y[0] &&
-        p.wageCagr <= zoom.y[1];
-      if (!inView) return '';
+  // Which cities to label. We rank points by salience — distance from the
+  // national-norm origin, normalized by the visible span on each axis so the two
+  // axes are comparable — then accept them greedily, skipping any candidate whose
+  // label box would collide with one already accepted. Bounding-box de-confliction
+  // (rather than a fixed top-K) lets us show more labels while avoiding pile-ups
+  // where several notable cities cluster together. The label box is modeled as
+  // wider than tall (GAP_X > GAP_Y) since the text is horizontal.
+  const labeledIds = useMemo(() => {
+    const ids = new Set<number>();
+    if (visiblePoints.length === 0) return ids;
+    const xs = visiblePoints.map((p) => p.migration);
+    const ys = visiblePoints.map((p) => p.wageCagr);
+    const xSpan = Math.max(...xs) - Math.min(...xs) || 1;
+    const ySpan = Math.max(...ys) - Math.min(...ys) || 1;
+    const GAP_X = 0.085;
+    const GAP_Y = 0.045;
+    const accepted: Point[] = [];
+    const tryAccept = (p: Point) => {
+      const clash = accepted.some(
+        (a) =>
+          Math.abs((a.migration - p.migration) / xSpan) < GAP_X &&
+          Math.abs((a.wageCagr - p.wageCagr) / ySpan) < GAP_Y,
+      );
+      if (clash) return;
+      accepted.push(p);
+      ids.add(p.city_id);
+    };
+    // Highlighted city is always labeled, and seeds the conflict set first so
+    // nearby cities yield to it.
+    const hl = visiblePoints.find((p) => p.city_id === highlightCityId);
+    if (hl) {
+      accepted.push(hl);
+      ids.add(hl.city_id);
     }
-    return Math.hypot(p.migration - natMig, (p.wageCagr - natWageCagr) * 5) >= cutoff
-      ? p.city
-      : '';
+    // Cities the prose calls out are forced on next — labeled regardless of
+    // salience or collisions, and seeding the conflict set so neighbours defer.
+    const forced = new Set(alwaysLabelKey ? alwaysLabelKey.split('|') : []);
+    if (forced.size > 0) {
+      for (const p of visiblePoints) {
+        if (forced.has(p.city) && !ids.has(p.city_id)) {
+          accepted.push(p);
+          ids.add(p.city_id);
+        }
+      }
+    }
+    const max = zoom ? 14 : 20;
+    const ranked = visiblePoints
+      .filter((p) => p.city_id !== highlightCityId)
+      .map((p) => ({
+        p,
+        d: Math.hypot((p.migration - natMig) / xSpan, (p.wageCagr - natWageCagr) / ySpan),
+      }))
+      .sort((a, b) => b.d - a.d);
+    for (const { p } of ranked) {
+      if (ids.size >= max) break;
+      tryAccept(p);
+    }
+    return ids;
+  }, [visiblePoints, natMig, natWageCagr, zoom, highlightCityId, alwaysLabelKey]);
+
+  // 2.5% padding on either side of the data range so labels for cities at the
+  // extreme ends don't get clipped by the plot edge.
+  const padded = (vals: number[], pct = 0.025): [number, number] => {
+    const lo = Math.min(...vals);
+    const hi = Math.max(...vals);
+    const pad = (hi - lo) * pct || 1;
+    return [lo - pad, hi + pad];
+  };
+  const xRange: [number, number] | null = zoom
+    ? zoom.x
+    : points.length
+    ? padded(points.map((p) => p.migration))
+    : null;
+
+  // Edge-aware text anchor based on where the point sits in the x range: cities in
+  // the outer ~18% on either side get their label anchored inward so it doesn't run
+  // off the frame.
+  const anchorFor = (mig: number): Anchor => {
+    if (!xRange) return 'middle';
+    const f = (mig - xRange[0]) / (xRange[1] - xRange[0] || 1);
+    return f > 0.82 ? 'end' : f < 0.18 ? 'start' : 'middle';
   };
 
-  const base = points
+  const base: LabeledPoint[] = points
     .filter((p) => p.city_id !== highlightCityId)
-    .map((p) => ({ ...p, label: labelFor(p) }));
-  const highlight = points
+    .map((p) => ({
+      ...p,
+      label: labeledIds.has(p.city_id) ? p.city : '',
+      anchor: anchorFor(p.migration),
+    }));
+  const highlight: LabeledPoint[] = points
     .filter((p) => p.city_id === highlightCityId)
-    .map((p) => ({ ...p, label: p.city }));
+    .map((p) => ({ ...p, label: p.city, anchor: anchorFor(p.migration) }));
 
   const handleMouseDown = (e: MouseEvt) => {
     if (!e || e.xValue == null || e.yValue == null) return;
@@ -192,19 +339,7 @@ export default function MigrationVsWageScatter({
     setDrag(null);
   };
 
-  // 2.5% padding on either side of the data range so labels for cities at the
-  // extreme ends don't get clipped by the plot edge.
-  const padded = (vals: number[], pct = 0.025): [number, number] => {
-    const lo = Math.min(...vals);
-    const hi = Math.max(...vals);
-    const pad = (hi - lo) * pct || 1;
-    return [lo - pad, hi + pad];
-  };
-  const xDomain: [number | string, number | string] = zoom
-    ? zoom.x
-    : points.length
-    ? padded(points.map((p) => p.migration))
-    : ['auto', 'auto'];
+  const xDomain: [number | string, number | string] = xRange ?? ['auto', 'auto'];
   const yDomain: [number | string, number | string] = zoom ? zoom.y : ['auto', 'auto'];
 
   return (
@@ -233,7 +368,6 @@ export default function MigrationVsWageScatter({
             type="number"
             dataKey="migration"
             name="Net migration"
-            unit="%"
             domain={xDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
@@ -249,14 +383,15 @@ export default function MigrationVsWageScatter({
             type="number"
             dataKey="wageCagr"
             name="Wage CAGR"
-            unit="%"
             domain={yDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
-            width={56}
+            width={60}
             tickFormatter={(v) => `${v.toFixed(1)}%`}
             label={{
-              value: `CNSS ${wageStat} daily wage, CAGR 2014–2024 (%)`,
+              value: isDeriv
+                ? Y_AXIS_LABEL[mode]
+                : `CNSS ${wageStat} daily wage, CAGR 2014–2024 (%)`,
               angle: -90,
               position: 'insideLeft',
               offset: 12,
@@ -279,7 +414,9 @@ export default function MigrationVsWageScatter({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `${wageStat === 'median' ? 'median' : 'nat. avg'} ${natWageCagr.toFixed(1)}% / yr`,
+              value: isDeriv
+                ? 'national pace (0%)'
+                : `${wageStat === 'median' ? 'median' : 'nat. avg'} ${natWageCagr.toFixed(1)}% / yr`,
               position: 'insideTopRight',
               offset: 4,
               fontSize: 10,
@@ -302,24 +439,24 @@ export default function MigrationVsWageScatter({
                 >
                   <strong>{p.city}</strong>
                   <div>Net migration: {p.migration.toFixed(1)}%</div>
-                  <div>Wage CAGR: {p.wageCagr.toFixed(1)}% / yr</div>
+                  <div>
+                    {Y_TOOLTIP_LABEL[mode]}: {p.wageCagr.toFixed(1)}% / yr
+                  </div>
                 </div>
               );
             }}
           />
           <Scatter data={base} fill={BASE} fillOpacity={highlightCityId ? 0.35 : 1}>
-            <LabelList
-              dataKey="label"
-              position="top"
-              style={{ fontSize: 12, fill: '#444' }}
-            />
+            <LabelList content={cityLabelContent(base, { fontSize: 12, fill: '#444' })} />
           </Scatter>
           {highlight.length > 0 && (
             <Scatter data={highlight} fill={HIGHLIGHT} legendType="none">
               <LabelList
-                dataKey="label"
-                position="top"
-                style={{ fontSize: 14, fontWeight: 600, fill: HIGHLIGHT }}
+                content={cityLabelContent(highlight, {
+                  fontSize: 14,
+                  fontWeight: 600,
+                  fill: HIGHLIGHT,
+                })}
               />
             </Scatter>
           )}
@@ -338,24 +475,26 @@ export default function MigrationVsWageScatter({
         </ScatterChart>
       </ResponsiveContainer>
 
-      <div className="quadrant-legend">
-        <div>
-          <div className="q-name">Top-left · wages rising, people leaving</div>
-          <div className="q-desc">Pay grew faster than the national norm but the city still lost population — supply outran labor demand, or amenities/cost-of-living dominate.</div>
+      {showQuadrantLegend && (
+        <div className="quadrant-legend">
+          <div>
+            <div className="q-name">Top-left · wages rising, people leaving</div>
+            <div className="q-desc">Pay grew faster than the national norm but the city still lost population — supply outran labor demand, or amenities/cost-of-living dominate.</div>
+          </div>
+          <div>
+            <div className="q-name">Top-right · positive demand shock</div>
+            <div className="q-desc">Wages and migration both above the national pace — labor demand is rising and workers are responding. The textbook story.</div>
+          </div>
+          <div>
+            <div className="q-name">Bottom-left · negative demand shock</div>
+            <div className="q-desc">Wage growth lagging and net outflows — the local economy is shedding both pay and people.</div>
+          </div>
+          <div>
+            <div className="q-name">Bottom-right · attracting despite slow wage growth</div>
+            <div className="q-desc">People are arriving even though wages aren't outpacing the country — driven by affordability, jobs that aren't yet showing up in CNSS pay, or non-wage pull.</div>
+          </div>
         </div>
-        <div>
-          <div className="q-name">Top-right · positive demand shock</div>
-          <div className="q-desc">Wages and migration both above the national pace — labor demand is rising and workers are responding. The textbook story.</div>
-        </div>
-        <div>
-          <div className="q-name">Bottom-left · negative demand shock</div>
-          <div className="q-desc">Wage growth lagging and net outflows — the local economy is shedding both pay and people.</div>
-        </div>
-        <div>
-          <div className="q-name">Bottom-right · attracting despite slow wage growth</div>
-          <div className="q-desc">People are arriving even though wages aren't outpacing the country — driven by affordability, jobs that aren't yet showing up in CNSS pay, or non-wage pull.</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
