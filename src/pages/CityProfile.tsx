@@ -18,6 +18,9 @@ import SectionOverviewTreemap from '../components/charts/SectionOverviewTreemap'
 import CityMap from '../components/charts/CityMap';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
+import { useLang } from '../i18n/context';
+import { useT } from '../i18n/ui';
+import { cityContent } from '../i18n/content';
 
 export default function CityProfile() {
   const { citySlug: slug = '' } = useParams();
@@ -27,6 +30,9 @@ export default function CityProfile() {
   const ssIndustry = useCityIndustryShiftShare();
   const industryComplexity = useIndustryComplexity();
   const translations = useIndustryTranslations();
+  const { lang } = useLang();
+  const t = useT();
+  const cc = cityContent;
 
   const city = useMemo(() => {
     if (!panel.data) return null;
@@ -46,14 +52,14 @@ export default function CityProfile() {
     return m;
   }, [ss.data]);
 
-  if (panel.loading) return <p className="loading">Loading…</p>;
+  if (panel.loading) return <p className="loading">{t('common.loading')}</p>;
   if (panel.error) return <p className="error">{panel.error.message}</p>;
   if (!city || !panel.data) {
     return (
       <>
-        <p className="error">No city matches "{slug}".</p>
+        <p className="error">{t('common.noCityMatch', { slug })}</p>
         <p>
-          <Link to="/">← Back to overview</Link>
+          <Link to="/">{t('common.backOverview')}</Link>
         </p>
       </>
     );
@@ -74,7 +80,7 @@ export default function CityProfile() {
   return (
     <article>
       <p className="muted">
-        <Link to="/">← All cities</Link>
+        <Link to="/">{t('common.allCities')}</Link>
       </p>
 
       <div className="city-header">
@@ -83,49 +89,26 @@ export default function CityProfile() {
       </div>
 
       {!hasCnss && (
-        <aside className="data-gap-notice">
-          <strong>No CNSS coverage for {city.name}.</strong> The social-security
-          registry has no ville matching this FUA's communes, so formal-sector
-          figures — wages, industry composition, complexity, and the
-          shift-share — are not shown. Workers from {city.name} most likely
-          report under a neighbouring CNSS ville. Census-based indicators
-          (population, unemployment, migration) below are unaffected.
-        </aside>
+        <aside className="data-gap-notice">{cc.dataGapNotice[lang](city.name)}</aside>
       )}
 
       <div className="chart-block">
-        <h4>What we mean by {city.name}</h4>
-        <p className="chart-caption">
-          The functional urban area (dashed boundary) and the communes inside it.
-          Together they form the city's labor market for the rest of this page.
-        </p>
+        <h4>{cc.whatWeMeanTitle[lang](city.name)}</h4>
+        <p className="chart-caption">{cc.whatWeMeanCaption[lang](city.name)}</p>
         <CityMap slug={slug} cityName={city.name} variant="definition" />
       </div>
 
-      <p className="muted">
-        The rest of the page compares {city.name} on levels (where it stands today) and changes
-        (how it moved between 2014 and 2024).
-      </p>
+      <p className="muted">{cc.levelsIntro[lang](city.name)}</p>
 
       {/* SECTION 1 — LEVELS */}
-      <h3>1. Where {city.name} stands today</h3>
-      <p>
-        How big is the city, what does it pay, and how easy is it to find a job? Each row shows
-        the 2024 level, the change since 2014, the city's rank among the 63 functional urban
-        areas, and a comparison to Casablanca — Morocco's largest and most-watched city.
-      </p>
+      <h3>{cc.section1H3[lang](city.name)}</h3>
+      <p>{cc.levelsP[lang](city.name)}</p>
       <SectionLevels rows={panel.data} cityId={city.id} complexity={complexity.data} />
 
       {hasCnss && (
         <div className="chart-block">
-          <h4>What {city.name} does for a living</h4>
-          <p className="chart-caption">
-            The city's 2024 industrial composition. Each rectangle is one CNSS industry, sized by
-            workers, grouped by NACE section. Toggle the color to view sectional kind,
-            industry-level economic complexity (PCI from the national product space), how this
-            city's daily wage in each industry compares to the cross-city median for that industry,
-            or the 2014–2024 wage growth (CAGR) within each industry.
-          </p>
+          <h4>{cc.compositionTitle[lang](city.name)}</h4>
+          <p className="chart-caption">{cc.compositionCaption[lang](city.name)}</p>
           {ssIndustry.data && (
             <SectionOverviewTreemap
               rows={ssIndustry.data}
@@ -139,47 +122,19 @@ export default function CityProfile() {
       )}
 
       {/* SECTION 2 — CHANGES */}
-      <h3>2. How {city.name} has changed</h3>
-      <p>
-        The rest of this section asks what has driven the city's
-        evolution over the past decade. We start with the within-city
-        map of where people are moving, then locate {city.name} on
-        the migration-versus-labor-outcomes scatter from the overview.
-        The charts that follow decompose the change in formal
-        employment: a shift-share splits it into national,
-        industry-mix, and local-share components; one treemap shows
-        which industries gained or lost share; another shows new
-        industries that have entered since 2014.
-      </p>
+      <h3>{cc.section2H3[lang](city.name)}</h3>
+      <p>{cc.changesIntro[lang](city.name)}</p>
 
       <div className="chart-block">
-        <h4>Where the people are moving</h4>
-        <p className="chart-caption">
-          Communes shaded by net internal migration over the last decade. Green = net inflow, red =
-          net outflow. The dashed boundary is the FUA used to define the city.
-        </p>
+        <h4>{cc.movingTitle[lang](city.name)}</h4>
+        <p className="chart-caption">{cc.movingCaption[lang](city.name)}</p>
         <CityMap slug={slug} cityName={city.name} />
       </div>
 
-      <p>
-        Stepping back from {city.name}'s internal flows to its position
-        among the 66 cities: the scatter below places {city.name} (in
-        red) in the migration-versus-wages plane introduced on the
-        overview. Cities in the upper right show positive demand
-        shocks (both migration and wages above the national norm);
-        cities in the lower left show the opposite; the off-diagonal
-        quadrants are the ambiguous cases the spatial-equilibrium
-        framing was set up to read.
-      </p>
+      <p>{cc.positionIntro[lang](city.name)}</p>
       <div className="chart-block">
-        <h4>Position in the migration vs. labor-market outcomes map</h4>
-        <p className="chart-caption">
-          Each point is one city. {city.name} is highlighted in red. The Y axis
-          toggle switches between median and mean wage growth (CAGR of CNSS
-          daily wage), composition-adjusted wage-premium growth, and the
-          2014–2024 change in the unemployment rate. Dashed lines mark the
-          national norm on each axis.
-        </p>
+        <h4>{cc.positionTitle[lang](city.name)}</h4>
+        <p className="chart-caption">{cc.positionCaption[lang](city.name)}</p>
         <MigrationVsLaborOutcome
           rows={panel.data}
           highlightCityId={city.id}
@@ -188,58 +143,31 @@ export default function CityProfile() {
         />
       </div>
 
-      <h4>What's driven the change in formal employment?</h4>
-      <p>
-        The scatter signals the sign of the demand shock; the next
-        three charts characterise its content. We decompose the
-        city's 2014→2024 change in CNSS workers into four pieces
-        using a shift-share. <strong>National</strong> is the
-        rising-tide effect (every city grew with Morocco).{' '}
-        <strong>Industry mix</strong> rewards or penalises a city
-        for its inherited industrial composition: cities heavy in
-        nationally-fast-growing industries get a boost.{' '}
-        <strong>Local share</strong> is the city-specific bit, how
-        much its industries outperformed (or underperformed) the
-        same industries elsewhere in Morocco. This is the cleanest
-        signal of a local positive or negative demand shock.
-      </p>
+      <h4>{cc.drivenTitle[lang](city.name)}</h4>
+      <p>{cc.drivenP[lang](city.name)}</p>
 
-      {ss.loading && <p className="loading">Loading shift-share…</p>}
-      {ss.error && <p className="error">Could not load shift-share: {ss.error.message}</p>}
+      {ss.loading && <p className="loading">{t('cp.loadingShiftShare')}</p>}
+      {ss.error && (
+        <p className="error">{t('cp.shiftShareError', { msg: ss.error.message })}</p>
+      )}
       {!ss.loading && !cityShiftShare && (
-        <p className="muted">
-          No shift-share for {city.name} — no CNSS-matched ville means there is
-          no formal-employment series to decompose.
-        </p>
+        <p className="muted">{cc.ssMissing[lang](city.name)}</p>
       )}
       {cityShiftShare && (
         <>
           <div className="chart-block">
-            <h4>Decomposition of formal-employment change</h4>
-            <p className="chart-caption">
-              Bars step from 2014 to 2024 workers; each contribution is labelled.
-            </p>
+            <h4>{cc.decompTitle[lang](city.name)}</h4>
+            <p className="chart-caption">{cc.decompCaption[lang](city.name)}</p>
             <ShiftShareWaterfall row={cityShiftShare} />
           </div>
 
-          <p>
-            The waterfall summarises the change at the aggregate
-            level; the treemap below opens it up by industry. Each
-            rectangle is one CNSS industry as it stood in 2014, and
-            the colour toggle reveals which industries account for the
-            local-share or industry-mix gains and losses. This is the
-            most concrete view of what is growing or shrinking on the
-            demand side.
-          </p>
+          <p>{cc.waterfallToTreemapP[lang](city.name)}</p>
           <div className="chart-block">
-            <h4>Industry mix in 2014, by section</h4>
-            <p className="chart-caption">
-              Each rectangle is one CNSS industry, sized by 2014 workers and grouped by NACE
-              section. Toggle the color to see which industries gained or lost the largest share
-              of their 2014 workforce via the local-share or industry-mix component (capped at
-              ±100%). Hover for the per-industry detail.
-            </p>
-            {ssIndustry.loading && <p className="loading">Loading industry detail…</p>}
+            <h4>{cc.mixTitle[lang](city.name)}</h4>
+            <p className="chart-caption">{cc.mixCaption[lang](city.name)}</p>
+            {ssIndustry.loading && (
+              <p className="loading">{cc.loadingIndustryDetail[lang](city.name)}</p>
+            )}
             {ssIndustry.data && (
               <IndustryTreemap
                 rows={ssIndustry.data}
@@ -249,23 +177,10 @@ export default function CityProfile() {
             )}
           </div>
 
-          <p>
-            Not all of the new formal employment in {city.name} has
-            come from existing industries expanding. The treemap below
-            isolates industries that had zero workers in the city in
-            2014 and a positive count in 2024. These represent entry
-            into new lines of activity, and a useful diagnostic for
-            whether the city has been diversifying its productive
-            structure or simply growing within its existing one.
-          </p>
+          <p>{cc.newIndIntroP[lang](city.name)}</p>
           <div className="chart-block">
-            <h4>New industries since 2014</h4>
-            <p className="chart-caption">
-              Industries with zero CNSS workers in 2014 that show up by 2024. Toggle the color
-              to view by NACE section, by daily wage relative to the industry's national median,
-              or by daily wage relative to the city's median. These contribute entirely to the
-              entry-effect bar in the waterfall above.
-            </p>
+            <h4>{cc.newIndTitle[lang](city.name)}</h4>
+            <p className="chart-caption">{cc.newIndCaption[lang](city.name)}</p>
             {ssIndustry.data && (
               <NewIndustriesTreemap
                 rows={ssIndustry.data}
@@ -279,26 +194,11 @@ export default function CityProfile() {
       )}
 
       {/* SECTION 3 — COMMUNE EXPLORER */}
-      <h3>3. {city.name} commune by commune</h3>
-      <p>
-        The maps above each told one story. This last one is open-ended:
-        pick an indicator and the communes that make up {city.name} shade
-        by it. Net migration is the within-city flow already seen above;
-        the rest are 2024 census levels — how tight the labor market is
-        (unemployment, participation), the human capital on hand (tertiary
-        education), where the city's mass sits (population), and housing
-        deprivation (slum share). Together they sketch why people sort the
-        way they do inside the city. Formal wages are absent on purpose:
-        CNSS pay is recorded at the ville level, not the commune, so there
-        is no honest commune-level wage to map.
-      </p>
+      <h3>{cc.section3H3[lang](city.name)}</h3>
+      <p>{cc.communeP[lang](city.name)}</p>
       <div className="chart-block">
-        <h4>Explore {city.name}'s communes by indicator</h4>
-        <p className="chart-caption">
-          Each commune in the FUA (dashed boundary) shaded by the selected
-          indicator. Use the dropdown to switch indicators; hover a commune for
-          its value, and drag to zoom.
-        </p>
+        <h4>{cc.communeTitle[lang](city.name)}</h4>
+        <p className="chart-caption">{cc.communeCaption[lang](city.name)}</p>
         <CityMap slug={slug} cityName={city.name} variant="explorer" />
       </div>
     </article>

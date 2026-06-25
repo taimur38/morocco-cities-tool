@@ -13,6 +13,8 @@ import {
   useSectionBoxes,
   type RecordBox,
 } from './sectionLabels';
+import { useLang } from '../../i18n/context';
+import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
 type Mode =
   | 'section'
@@ -64,6 +66,8 @@ export default function SectionOverviewTreemap({
   cityMedianWage = null,
   translations,
 }: Props) {
+  const t = useT();
+  const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('section');
   const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
 
@@ -112,7 +116,7 @@ export default function SectionOverviewTreemap({
     const bySection = new Map<string, Leaf[]>();
     for (const c of cells) {
       totalWorkers += c.workers_2024;
-      const label = translations?.get(c.LIBELLE_ACTIVITE) ?? c.LIBELLE_ACTIVITE;
+      const label = industryLabel(c.LIBELLE_ACTIVITE, translations, lang);
       const pci = pciByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
       const med = wageMedianByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
       const wage = c.daily_wage_2024 != null && Number.isFinite(c.daily_wage_2024)
@@ -161,31 +165,31 @@ export default function SectionOverviewTreemap({
       .sort((a, b) => sumSize(b.children) - sumSize(a.children));
 
     return { data, totalWorkers };
-  }, [rows, cityId, translations, pciByCode, wageMedianByCode, cityMedianWage]);
+  }, [rows, cityId, translations, lang, pciByCode, wageMedianByCode, cityMedianWage]);
 
   if (data.length === 0) {
-    return <p className="muted">No 2024 industry employment for this city.</p>;
+    return <p className="muted">{t('tm.empty.composition')}</p>;
   }
 
   return (
     <div>
       <div className="chart-toolbar">
         <label className="chart-toolbar-control">
-          Color by
+          {t('charts.colorBy')}
           <select
             className="chart-toolbar-select"
             value={mode}
             onChange={(e) => setMode(e.target.value as Mode)}
           >
-            <option value="section">Industry section</option>
-            <option value="complexity">Industry complexity</option>
-            <option value="wage_industry">Daily wage vs. industry national median</option>
-            <option value="wage_city">Daily wage vs. city median</option>
-            <option value="wage_growth">Wage growth, CAGR 2014–2024</option>
+            <option value="section">{t('tm.opt.section')}</option>
+            <option value="complexity">{t('tm.opt.complexity')}</option>
+            <option value="wage_industry">{t('tm.opt.wageIndustry')}</option>
+            <option value="wage_city">{t('tm.opt.wageCity')}</option>
+            <option value="wage_growth">{t('tm.opt.wageGrowth')}</option>
           </select>
         </label>
         <span className="chart-toolbar-hint">
-          Sized by 2024 workers · {fmtInt.format(totalWorkers)} total
+          {t('charts.sizedBy2024', { n: fmtInt.format(totalWorkers) })}
         </span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -209,18 +213,18 @@ export default function SectionOverviewTreemap({
       {mode === 'wage_city' && (
         <WageLegend
           bound={WAGE_DEV_BOUND}
-          reference="city median"
-          note="Each cell's daily wage compared to the city's median daily wage across all CNSS person-days."
+          reference={t('legend.wage.cityMedian')}
+          note={t('legend.wage.note.city')}
         />
       )}
       {mode === 'wage_growth' && (
         <WageLegend
           bound={WAGE_CAGR_BOUND}
-          reference="0% / yr"
-          unit="% / yr"
-          lowLabel="declining"
-          highLabel="rising"
-          note={`Annualized growth in each industry's mean daily wage between 2014 and 2024. Color scale capped at ±${WAGE_CAGR_BOUND}% / yr.`}
+          reference={t('tm.zeroPerYr')}
+          unit={t('tm.unit.perYr')}
+          lowLabel={t('legend.wage.declining')}
+          highLabel={t('legend.wage.rising')}
+          note={t('tm.note.wageGrowth', { bound: WAGE_CAGR_BOUND })}
         />
       )}
     </div>
@@ -344,29 +348,31 @@ function fmtSignedPct(v: number | null | undefined): string {
 }
 
 function LeafTooltip({ active, payload }: TipProps) {
+  const t = useT();
+  const { lang } = useLang();
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0]?.payload;
   if (!p || p.children) return null;
   return (
     <div className="treemap-tooltip">
       <div className="treemap-tooltip-name">{p.name}</div>
-      <div className="treemap-tooltip-section">{p.section}</div>
+      <div className="treemap-tooltip-section">{sectionLabel(p.section, lang)}</div>
       <dl className="treemap-tooltip-grid">
-        <dt>Workers 2024</dt>
+        <dt>{t('tip.workers2024')}</dt>
         <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
-        <dt>Industry complexity (PCI)</dt>
+        <dt>{t('tip.pci')}</dt>
         <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
-        <dt>Daily wage 2024 (MAD)</dt>
+        <dt>{t('tip.dailyWage2024')}</dt>
         <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
-        <dt>Wage growth 2014–2024</dt>
+        <dt>{t('tip.wageGrowth')}</dt>
         <dd>
           {p.wage_cagr_pct == null
             ? '—'
-            : `${p.wage_cagr_pct >= 0 ? '+' : ''}${fmtNum(p.wage_cagr_pct, 1)}% / yr`}
+            : `${p.wage_cagr_pct >= 0 ? '+' : ''}${fmtNum(p.wage_cagr_pct, 1)} ${t('tm.unit.perYr')}`}
         </dd>
-        <dt>vs. industry national median</dt>
+        <dt>{t('tip.vsIndustryNat')}</dt>
         <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
-        <dt>vs. city median</dt>
+        <dt>{t('tip.vsCityMedian')}</dt>
         <dd>{fmtSignedPct(p.wage_dev_city_pct)}</dd>
       </dl>
     </div>

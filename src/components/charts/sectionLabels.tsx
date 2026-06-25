@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState, type DependencyList } from 'react';
+import { useLang } from '../../i18n/context';
+import { sectionLabel } from '../../i18n/ui';
 
 export type SectionBox = { x: number; y: number; w: number; h: number };
 export type RecordBox = (name: string, box: SectionBox) => void;
@@ -61,6 +63,7 @@ export function SectionLabelsOverlay({
   minWidth?: number;
   minHeight?: number;
 }) {
+  const { lang } = useLang();
   if (boxes.size === 0) return null;
   return (
     <svg
@@ -92,7 +95,7 @@ export function SectionLabelsOverlay({
               textTransform: 'uppercase',
             }}
           >
-            {truncateForBox(name.toUpperCase(), b.w)}
+            {truncateForBox(sectionLabel(name, lang).toUpperCase(), b.w)}
           </text>
         ))}
     </svg>

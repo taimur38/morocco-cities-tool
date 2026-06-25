@@ -2,6 +2,9 @@ import { useMemo } from 'react';
 import type { CityComplexityRow, CityPanelRow } from '../../data/types';
 import { fmtInt, fmtMoney, fmtNum, fmtPct, pctChange } from '../../lib/format';
 import { cleanCityName } from '../../lib/derive';
+import { useT } from '../../i18n/ui';
+
+type T = ReturnType<typeof useT>;
 
 type Props = {
   rows: CityPanelRow[];
@@ -22,21 +25,22 @@ type Indicator = {
 };
 
 export default function SectionLevels({ rows, cityId, complexity }: Props) {
+  const t = useT();
   const indicators = useMemo(
-    () => deriveIndicators(rows, cityId, complexity ?? null),
-    [rows, cityId, complexity],
+    () => deriveIndicators(rows, cityId, complexity ?? null, t),
+    [rows, cityId, complexity, t],
   );
-  if (!indicators) return <p className="muted">No 2024 data for this city.</p>;
+  if (!indicators) return <p className="muted">{t('levels.noData')}</p>;
 
   return (
     <table className="levels-table">
       <thead>
         <tr>
-          <th>Indicator</th>
-          <th className="col-num">2024</th>
-          <th className="col-num">Change since 2014</th>
-          <th className="col-num">Rank (of 63)</th>
-          <th className="col-num">vs. Casablanca</th>
+          <th>{t('levels.header.indicator')}</th>
+          <th className="col-num">{t('levels.header.2024')}</th>
+          <th className="col-num">{t('levels.header.change')}</th>
+          <th className="col-num">{t('levels.header.rank')}</th>
+          <th className="col-num">{t('levels.header.vsCasa')}</th>
         </tr>
       </thead>
       <tbody>
@@ -88,6 +92,7 @@ function deriveIndicators(
   rows: CityPanelRow[],
   cityId: number,
   complexity: CityComplexityRow[] | null,
+  t: T,
 ): Indicator[] | null {
   const y2024 = rows.filter((r) => r.year === 2024);
   const y2014 = rows.filter((r) => r.year === 2014);
@@ -106,8 +111,8 @@ function deriveIndicators(
 
   const indicators: Indicator[] = [
     {
-      name: 'Population',
-      note: 'Total residents in the FUA',
+      name: t('levels.population'),
+      note: t('levels.population.note'),
       value: fmtInt.format(popLevel.value),
       change: signedPct(pctChange(popLevel.prior, popLevel.value)),
       rank: popLevel.rank.toString(),
@@ -115,16 +120,16 @@ function deriveIndicators(
     },
     wageLevel
       ? {
-          name: 'Daily formal wage',
-          note: 'Median CNSS-registered worker',
+          name: t('levels.wage'),
+          note: t('levels.wage.note'),
           value: fmtMoney(wageLevel.value),
           change: signedPct(pctChange(wageLevel.prior, wageLevel.value)),
           rank: wageLevel.rank.toString(),
           vsCasa: vsCasaShare(wageLevel.casaShare),
         }
       : {
-          name: 'Daily formal wage',
-          note: 'No CNSS-matched ville — see notice above',
+          name: t('levels.wage'),
+          note: t('levels.wage.noteAbsent'),
           value: '—',
           change: '—',
           rank: '—',
@@ -134,8 +139,8 @@ function deriveIndicators(
 
   if (unempLevel) {
     indicators.push({
-      name: 'Unemployment',
-      note: 'Share of the labor force',
+      name: t('levels.unemp'),
+      note: t('levels.unemp.note'),
       value: fmtPct(unempLevel.value),
       // Unemployment is itself a rate, so a % change reads awkwardly — use pp.
       change: signedPp(
@@ -147,7 +152,7 @@ function deriveIndicators(
   }
 
   if (complexity && complexity.length > 0) {
-    const eci = makeEciIndicator(complexity, cityId);
+    const eci = makeEciIndicator(complexity, cityId, t);
     if (eci) indicators.push(eci);
   }
 
@@ -157,6 +162,7 @@ function deriveIndicators(
 function makeEciIndicator(
   complexity: CityComplexityRow[],
   cityId: number,
+  t: T,
 ): Indicator | null {
   const c2024 = complexity.filter((r) => r.year === 2024);
   const c2014 = complexity.filter((r) => r.year === 2014);
@@ -170,8 +176,8 @@ function makeEciIndicator(
   const rank = cohort.findIndex((r) => r.id === cityId) + 1;
   const delta = me14?.eci_workers != null ? me.eci_workers - me14.eci_workers : null;
   return {
-    name: 'Economic complexity',
-    note: 'ECI from CNSS worker-share specialization',
+    name: t('levels.eci'),
+    note: t('levels.eci.note'),
     value: fmtNum(me.eci_workers, 2),
     change: signedDelta(delta),
     rank: rank.toString(),

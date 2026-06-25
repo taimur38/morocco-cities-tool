@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useT } from '../i18n/ui';
+import LanguageToggle from './LanguageToggle';
 
 export default function Layout() {
   const location = useLocation();
+  const t = useT();
   useEffect(() => {
     // No hash: jump to top on route change.
     if (!location.hash) {
@@ -30,11 +33,12 @@ export default function Layout() {
   return (
     <>
       <header className="site-header">
-        <h1>Morocco Cities</h1>
+        <h1>{t('header.title')}</h1>
         <nav>
-          <Link to="/">Overview</Link>
-          <Link to="/#cities">Cities</Link>
+          <Link to="/">{t('header.overview')}</Link>
+          <Link to="/#cities">{t('header.cities')}</Link>
         </nav>
+        <LanguageToggle />
       </header>
       <main>
         <Outlet />

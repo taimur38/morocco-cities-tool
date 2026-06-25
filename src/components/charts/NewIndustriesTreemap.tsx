@@ -10,6 +10,8 @@ import {
   useSectionBoxes,
   type RecordBox,
 } from './sectionLabels';
+import { useLang } from '../../i18n/context';
+import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
 type Mode = 'section' | 'wage_industry' | 'wage_city';
 
@@ -45,6 +47,8 @@ export default function NewIndustriesTreemap({
   cityMedianWage = null,
   translations,
 }: Props) {
+  const t = useT();
+  const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('section');
   const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
 
@@ -82,7 +86,7 @@ export default function NewIndustriesTreemap({
     let total = 0;
     for (const c of cells) {
       total += c.workers_2024;
-      const label = translations?.get(c.LIBELLE_ACTIVITE) ?? c.LIBELLE_ACTIVITE;
+      const label = industryLabel(c.LIBELLE_ACTIVITE, translations, lang);
       const wage =
         c.daily_wage_2024 != null && Number.isFinite(c.daily_wage_2024)
           ? c.daily_wage_2024
@@ -115,33 +119,29 @@ export default function NewIndustriesTreemap({
       .sort((a, b) => sumSize(b.children) - sumSize(a.children));
 
     return { data, total, count: cells.length, sectionsPresent: data.map((g) => g.name) };
-  }, [rows, cityId, translations, wageMedianByCode, cityMedianWage]);
+  }, [rows, cityId, translations, lang, wageMedianByCode, cityMedianWage]);
 
   if (data.length === 0) {
-    return (
-      <p className="muted">
-        No industries appeared from scratch in this city between 2014 and 2024.
-      </p>
-    );
+    return <p className="muted">{t('tm.empty.new')}</p>;
   }
 
   return (
     <div>
       <div className="chart-toolbar">
         <label className="chart-toolbar-control">
-          Color by
+          {t('charts.colorBy')}
           <select
             className="chart-toolbar-select"
             value={mode}
             onChange={(e) => setMode(e.target.value as Mode)}
           >
-            <option value="section">Industry section</option>
-            <option value="wage_industry">Daily wage vs. industry national median</option>
-            <option value="wage_city">Daily wage vs. city median</option>
+            <option value="section">{t('tm.opt.section')}</option>
+            <option value="wage_industry">{t('tm.opt.wageIndustry')}</option>
+            <option value="wage_city">{t('tm.opt.wageCity')}</option>
           </select>
         </label>
         <span className="chart-toolbar-hint">
-          {count} new industries · {fmtInt.format(total)} workers in 2024
+          {t('tm.new.hint', { count, n: fmtInt.format(total) })}
         </span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -164,8 +164,8 @@ export default function NewIndustriesTreemap({
       {mode === 'wage_city' && (
         <WageLegend
           bound={WAGE_DEV_BOUND}
-          reference="city median"
-          note="Each cell's daily wage compared to the city's median daily wage across all CNSS person-days."
+          reference={t('legend.wage.cityMedian')}
+          note={t('legend.wage.note.city')}
         />
       )}
     </div>
@@ -269,23 +269,25 @@ function fmtSignedPct(v: number | null | undefined): string {
 }
 
 function LeafTooltip({ active, payload }: TipProps) {
+  const t = useT();
+  const { lang } = useLang();
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0]?.payload;
   if (!p || p.children) return null;
   return (
     <div className="treemap-tooltip">
       <div className="treemap-tooltip-name">{p.name}</div>
-      <div className="treemap-tooltip-section">{p.section}</div>
+      <div className="treemap-tooltip-section">{sectionLabel(p.section, lang)}</div>
       <dl className="treemap-tooltip-grid">
-        <dt>Workers 2024</dt>
+        <dt>{t('tip.workers2024')}</dt>
         <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
-        <dt>Workers 2014</dt>
-        <dd>0 (new entrant)</dd>
-        <dt>Daily wage 2024 (MAD)</dt>
+        <dt>{t('tip.workers2014')}</dt>
+        <dd>{t('tip.newEntrant0')}</dd>
+        <dt>{t('tip.dailyWage2024')}</dt>
         <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
-        <dt>vs. industry national median</dt>
+        <dt>{t('tip.vsIndustryNat')}</dt>
         <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
-        <dt>vs. city median</dt>
+        <dt>{t('tip.vsCityMedian')}</dt>
         <dd>{fmtSignedPct(p.wage_dev_city_pct)}</dd>
       </dl>
     </div>

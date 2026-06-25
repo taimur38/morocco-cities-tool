@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import type { CityPanelRow } from '../../data/types';
 import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
+import { useT } from '../../i18n/ui';
 
 type Point = {
   city_id: number;
@@ -27,16 +28,6 @@ type WageStat = 'median' | 'mean';
 // (city + industry) fixed-effects wage premium, computed upstream. The latter needs
 // feGrowthByCity and is expressed as a deviation from national pace (0).
 type YMode = 'raw' | 'fe';
-
-const Y_AXIS_LABEL: Record<YMode, string> = {
-  raw: '', // filled in per-render (depends on wageStat)
-  fe: 'Wage-premium growth, regression FE (%/yr)',
-};
-
-const Y_TOOLTIP_LABEL: Record<YMode, string> = {
-  raw: 'Wage CAGR',
-  fe: 'FE premium growth',
-};
 
 type Props = {
   rows: CityPanelRow[];
@@ -125,6 +116,7 @@ export default function MigrationVsWageScatter({
   showQuadrantLegend = true,
   feGrowthByCity,
 }: Props) {
+  const t = useT();
   const alwaysLabelKey = (alwaysLabel ?? []).join('|');
   const hasFe = !!feGrowthByCity && feGrowthByCity.size > 0;
   // Fall back to raw if the requested mode's data isn't available, so we can't
@@ -346,11 +338,11 @@ export default function MigrationVsWageScatter({
     <div>
       <div className="chart-toolbar">
         <span className="chart-toolbar-hint">
-          {zoom ? 'Zoomed in' : 'Drag a rectangle to zoom in'}
+          {zoom ? t('charts.zoomedIn') : t('charts.dragToZoom')}
         </span>
         {zoom && (
           <button type="button" className="btn-link" onClick={() => setZoom(null)}>
-            Reset zoom
+            {t('charts.resetZoom')}
           </button>
         )}
       </div>
@@ -367,13 +359,13 @@ export default function MigrationVsWageScatter({
           <XAxis
             type="number"
             dataKey="migration"
-            name="Net migration"
+            name={t('scatter.tip.netMigration')}
             domain={xDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
             tickFormatter={(v) => `${v.toFixed(0)}%`}
             label={{
-              value: 'Net migration (10-yr), %',
+              value: t('scatter.xAxis'),
               position: 'insideBottom',
               offset: -22,
               style: { textAnchor: 'middle', fontSize: 13, fill: '#555' },
@@ -390,8 +382,8 @@ export default function MigrationVsWageScatter({
             tickFormatter={(v) => `${v.toFixed(1)}%`}
             label={{
               value: isDeriv
-                ? Y_AXIS_LABEL[mode]
-                : `CNSS ${wageStat} daily wage, CAGR 2014–2024 (%)`,
+                ? t('scatter.yAxis.fe')
+                : t('scatter.yAxis.wage', { stat: t(`stat.adj.${wageStat}`) }),
               angle: -90,
               position: 'insideLeft',
               offset: 12,
@@ -403,7 +395,7 @@ export default function MigrationVsWageScatter({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `median ${natMig.toFixed(1)}%`,
+              value: t('scatter.ref.median', { v: natMig.toFixed(1) }),
               position: 'insideTopLeft',
               fontSize: 10,
               fill: '#666',
@@ -415,8 +407,10 @@ export default function MigrationVsWageScatter({
             strokeDasharray="3 3"
             label={{
               value: isDeriv
-                ? 'national pace (0%)'
-                : `${wageStat === 'median' ? 'median' : 'nat. avg'} ${natWageCagr.toFixed(1)}% / yr`,
+                ? t('scatter.ref.nationalPace0')
+                : wageStat === 'median'
+                ? t('scatter.ref.medianPerYr', { v: natWageCagr.toFixed(1) })
+                : t('scatter.ref.natAvgPerYr', { v: natWageCagr.toFixed(1) }),
               position: 'insideTopRight',
               offset: 4,
               fontSize: 10,
@@ -438,9 +432,13 @@ export default function MigrationVsWageScatter({
                   }}
                 >
                   <strong>{p.city}</strong>
-                  <div>Net migration: {p.migration.toFixed(1)}%</div>
                   <div>
-                    {Y_TOOLTIP_LABEL[mode]}: {p.wageCagr.toFixed(1)}% / yr
+                    {t('scatter.tip.netMigration')}: {p.migration.toFixed(1)}%
+                  </div>
+                  <div>
+                    {isDeriv ? t('scatter.tip.fePremium') : t('scatter.tip.wageCagr')}:{' '}
+                    {p.wageCagr.toFixed(1)}
+                    {t('unit.percentPerYr')}
                   </div>
                 </div>
               );
@@ -478,20 +476,20 @@ export default function MigrationVsWageScatter({
       {showQuadrantLegend && (
         <div className="quadrant-legend">
           <div>
-            <div className="q-name">Top-left · wages rising, people leaving</div>
-            <div className="q-desc">Pay grew faster than the national norm but the city still lost population — supply outran labor demand, or amenities/cost-of-living dominate.</div>
+            <div className="q-name">{t('quad.tl.name')}</div>
+            <div className="q-desc">{t('quad.tl.desc')}</div>
           </div>
           <div>
-            <div className="q-name">Top-right · positive demand shock</div>
-            <div className="q-desc">Wages and migration both above the national pace — labor demand is rising and workers are responding. The textbook story.</div>
+            <div className="q-name">{t('quad.tr.name')}</div>
+            <div className="q-desc">{t('quad.tr.desc')}</div>
           </div>
           <div>
-            <div className="q-name">Bottom-left · negative demand shock</div>
-            <div className="q-desc">Wage growth lagging and net outflows — the local economy is shedding both pay and people.</div>
+            <div className="q-name">{t('quad.bl.name')}</div>
+            <div className="q-desc">{t('quad.bl.desc')}</div>
           </div>
           <div>
-            <div className="q-name">Bottom-right · attracting despite slow wage growth</div>
-            <div className="q-desc">People are arriving even though wages aren't outpacing the country — driven by affordability, jobs that aren't yet showing up in CNSS pay, or non-wage pull.</div>
+            <div className="q-name">{t('quad.br.name')}</div>
+            <div className="q-desc">{t('quad.br.desc')}</div>
           </div>
         </div>
       )}

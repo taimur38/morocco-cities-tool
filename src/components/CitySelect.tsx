@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { CityPanelRow } from '../data/types';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
+import { useT } from '../i18n/ui';
 
 export default function CitySelect({
   rows,
@@ -12,6 +13,7 @@ export default function CitySelect({
   current: string;
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const cities = useMemo(
     () =>
       [...new Map(rows.map((r) => [r.city_id, r])).values()]
@@ -25,7 +27,7 @@ export default function CitySelect({
       className="city-select"
       value={current}
       onChange={(e) => navigate(`/city/${e.target.value}`)}
-      aria-label="Select a city"
+      aria-label={t('select.aria')}
     >
       {cities.map((c) => (
         <option key={c.slug} value={c.slug}>

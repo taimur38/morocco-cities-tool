@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import DivergingBars, { type DivergingBarsItem } from './DivergingBars';
 import type { CityPanelRow } from '../../data/types';
 import { cleanCityName } from '../../lib/derive';
+import { useT } from '../../i18n/ui';
 
 // Net migration is a 2024-census snapshot — same value in both year rows of the
 // panel. Picking year=2024 guarantees one row per city and avoids double-counting.
 export default function MigrationBars({ rows, n = 10 }: { rows: CityPanelRow[]; n?: number }) {
+  const t = useT();
   const items: DivergingBarsItem[] = useMemo(
     () =>
       rows
@@ -18,7 +20,7 @@ export default function MigrationBars({ rows, n = 10 }: { rows: CityPanelRow[]; 
     <DivergingBars
       items={items}
       n={n}
-      xLabel="Net migration (10-year), % of 2014 resident population"
+      xLabel={t('bars.migration.xLabel')}
       valueFormat={(v) => `${v.toFixed(0)}%`}
     />
   );

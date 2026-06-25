@@ -9,6 +9,8 @@ import {
   useSectionBoxes,
   type RecordBox,
 } from './sectionLabels';
+import { useLang } from '../../i18n/context';
+import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
 type Mode = 'local_share' | 'industry_mix';
 
@@ -42,6 +44,8 @@ type Props = {
 // The color scale is hard-capped at ±100% so the diverging hue stays
 // interpretable across cities and modes.
 export default function IndustryTreemap({ rows, cityId, translations }: Props) {
+  const t = useT();
+  const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('local_share');
   const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
 
@@ -59,7 +63,7 @@ export default function IndustryTreemap({ rows, cityId, translations }: Props) {
       const metric = mode === 'local_share' ? c.local_share : c.industry_mix;
       const pct = c.workers_2014 > 0 ? (metric / c.workers_2014) * 100 : 0;
       totalWorkers += c.workers_2014;
-      const label = translations?.get(c.LIBELLE_ACTIVITE) ?? c.LIBELLE_ACTIVITE;
+      const label = industryLabel(c.LIBELLE_ACTIVITE, translations, lang);
       const arr = bySection.get(c.section) ?? [];
       arr.push({
         name: label,
@@ -81,28 +85,28 @@ export default function IndustryTreemap({ rows, cityId, translations }: Props) {
       .sort((a, b) => sumSize(b.children) - sumSize(a.children));
 
     return { data, totalWorkers };
-  }, [rows, cityId, mode, translations]);
+  }, [rows, cityId, mode, translations, lang]);
 
   if (data.length === 0) {
-    return <p className="muted">No incumbent industries with 2014 employment for this city.</p>;
+    return <p className="muted">{t('tm.empty.incumbent')}</p>;
   }
 
   return (
     <div>
       <div className="chart-toolbar">
         <label className="chart-toolbar-control">
-          Color by
+          {t('charts.colorBy')}
           <select
             className="chart-toolbar-select"
             value={mode}
             onChange={(e) => setMode(e.target.value as Mode)}
           >
-            <option value="local_share">Local-share effect</option>
-            <option value="industry_mix">Industry-mix effect</option>
+            <option value="local_share">{t('tm.opt.localShare')}</option>
+            <option value="industry_mix">{t('tm.opt.industryMix')}</option>
           </select>
         </label>
         <span className="chart-toolbar-hint">
-          Sized by 2014 workers · {fmtInt.format(totalWorkers)} total
+          {t('charts.sizedBy2014', { n: fmtInt.format(totalWorkers) })}
         </span>
       </div>
       <div style={{ position: 'relative' }}>
@@ -122,9 +126,10 @@ export default function IndustryTreemap({ rows, cityId, translations }: Props) {
       </div>
       <DivergingPctLegend
         bound={PCT_BOUND}
-        note={`Share of each industry's 2014 workforce attributed to the ${
-          mode === 'local_share' ? 'local-share' : 'industry-mix'
-        } effect. Color scale capped at ±${PCT_BOUND}%.`}
+        note={t(
+          mode === 'local_share' ? 'tm.note.localShare' : 'tm.note.industryMix',
+          { bound: PCT_BOUND },
+        )}
       />
     </div>
   );
@@ -218,6 +223,8 @@ type TipPayload = {
 type TipProps = { active?: boolean; payload?: TipPayload[]; mode: Mode };
 
 function LeafTooltip({ active, payload, mode }: TipProps) {
+  const t = useT();
+  const { lang } = useLang();
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0]?.payload;
   if (!p || p.children) return null; // section frames have children — skip
@@ -227,18 +234,20 @@ function LeafTooltip({ active, payload, mode }: TipProps) {
   return (
     <div className="treemap-tooltip">
       <div className="treemap-tooltip-name">{p.name}</div>
-      <div className="treemap-tooltip-section">{p.section}</div>
+      <div className="treemap-tooltip-section">{sectionLabel(p.section, lang)}</div>
       <dl className="treemap-tooltip-grid">
-        <dt>Workers 2014</dt>
+        <dt>{t('tip.workers2014')}</dt>
         <dd>{fmtInt.format(w14)}</dd>
-        <dt>Workers 2024</dt>
+        <dt>{t('tip.workers2024')}</dt>
         <dd>{fmtInt.format(w24)}</dd>
-        <dt>Net change</dt>
+        <dt>{t('tip.netChange')}</dt>
         <dd className={changeClass(change)}>
           {signed(change)} ({signedPct((change / Math.max(w14, 1)) * 100)})
         </dd>
-        <dt>{mode === 'local_share' ? 'Local-share effect' : 'Industry-mix effect'}</dt>
-        <dd className={changeClass(p.pct ?? 0)}>{signedPct(p.pct ?? 0)} of 2014 workforce</dd>
+        <dt>{mode === 'local_share' ? t('tip.localShareEffect') : t('tip.industryMixEffect')}</dt>
+        <dd className={changeClass(p.pct ?? 0)}>
+          {signedPct(p.pct ?? 0)} {t('tip.of2014Workforce')}
+        </dd>
       </dl>
     </div>
   );

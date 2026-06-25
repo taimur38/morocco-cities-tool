@@ -57,6 +57,9 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0;
   margin: 0;
 }
+.site-header nav {
+  margin-left: auto;
+}
 .site-header nav a {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   color: var(--muted);
@@ -64,6 +67,36 @@ a:hover { text-decoration: underline; }
   letter-spacing: 0.12em;
   text-transform: uppercase;
   margin-right: 1.5rem;
+}
+
+/* ── Language toggle ──────────────────────────────────────────────────── */
+.lang-toggle {
+  display: inline-flex;
+  align-self: center;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.lang-toggle button {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  padding: 0.2rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.lang-toggle button + button {
+  border-left: 1px solid var(--rule);
+}
+.lang-toggle button:hover {
+  color: var(--fg);
+}
+.lang-toggle button.active {
+  background: var(--fg);
+  color: #fff;
 }
 
 /* ── Reading layout ───────────────────────────────────────────────────── */

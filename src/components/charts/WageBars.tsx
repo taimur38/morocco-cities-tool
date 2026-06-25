@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import DivergingBars, { type DivergingBarsItem } from './DivergingBars';
 import type { CityPanelRow } from '../../data/types';
 import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
+import { useT } from '../../i18n/ui';
 
 type WageStat = 'median' | 'mean';
 
@@ -16,6 +17,7 @@ export default function WageBars({
   n?: number;
   wageStat?: WageStat;
 }) {
+  const t = useT();
   const items: DivergingBarsItem[] = useMemo(() => {
     const col = wageStat === 'median' ? 'cnss_median_daily_wage' : 'cnss_avg_daily_wage';
     return cityPairs(rows)
@@ -30,7 +32,7 @@ export default function WageBars({
     <DivergingBars
       items={items}
       n={n}
-      xLabel={`CNSS ${wageStat} daily wage, CAGR 2014–2024`}
+      xLabel={t('bars.wage.xLabel', { stat: t(`stat.adj.${wageStat}`) })}
       valueFormat={(v) => `${v.toFixed(1)}%`}
     />
   );

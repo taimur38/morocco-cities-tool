@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
+import { useT } from '../i18n/ui';
 import type { CityPanelRow } from '../data/types';
 
 type CityEntry = { id: number; name: string; slug: string; firstLetter: string };
@@ -12,6 +13,7 @@ function fold(s: string): string {
 }
 
 export default function CityPicker({ rows }: { rows: CityPanelRow[] }) {
+  const t = useT();
   const cities: CityEntry[] = useMemo(() => {
     const dedup = new Map<number, string>();
     for (const r of rows) {
@@ -51,15 +53,17 @@ export default function CityPicker({ rows }: { rows: CityPanelRow[] }) {
       <input
         className="city-directory-search"
         type="search"
-        placeholder="Search cities…"
+        placeholder={t('directory.search')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        aria-label="Search cities"
+        aria-label={t('directory.searchAria')}
       />
       <p className="city-directory-count">
-        {filtered.length} of {cities.length} cities
+        {t('directory.count', { n: filtered.length, total: cities.length })}
       </p>
-      {groups.length === 0 && <p className="city-directory-empty">No cities match "{query}".</p>}
+      {groups.length === 0 && (
+        <p className="city-directory-empty">{t('directory.empty', { query })}</p>
+      )}
       {groups.map(([letter, entries]) => (
         <div key={letter} className="city-directory-letter">
           <div className="city-directory-letter-label">{letter}</div>

@@ -14,6 +14,9 @@ import {
 import type { CityPanelRow } from '../../data/types';
 import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
 import { fmtNum } from '../../lib/format';
+import { useT } from '../../i18n/ui';
+
+type T = ReturnType<typeof useT>;
 
 type Metric = 'wage_median' | 'wage_mean' | 'unemp' | 'wage_premium_fe';
 
@@ -49,11 +52,11 @@ type MouseEvt = { xValue?: number; yValue?: number } | null;
 const HIGHLIGHT = '#c64646';
 const BASE = '#1a1a1a';
 
-const metricLabel = (m: Metric): string => {
-  if (m === 'wage_median') return 'CNSS median daily wage, CAGR 2014–2024 (%)';
-  if (m === 'wage_mean') return 'CNSS mean daily wage, CAGR 2014–2024 (%)';
-  if (m === 'wage_premium_fe') return 'Wage-premium growth, regression FE (%/yr)';
-  return 'Δ unemployment rate, 2014→2024 (pp)';
+const metricLabel = (m: Metric, t: T): string => {
+  if (m === 'wage_median') return t('labor.metric.wageMedian');
+  if (m === 'wage_mean') return t('labor.metric.wageMean');
+  if (m === 'wage_premium_fe') return t('labor.metric.wagePremiumFe');
+  return t('labor.metric.unemp');
 };
 
 const TICK_FMT: Record<Metric, (v: number) => string> = {
@@ -72,14 +75,14 @@ const yOf = (p: Point, m: Metric): number | null =>
     ? p.premiumFe
     : p.unempDelta;
 
-const tooltipFmt = (p: Point, m: Metric): string => {
+const tooltipFmt = (p: Point, m: Metric, t: T): string => {
   if (isPct(m)) {
     const v = yOf(p, m);
-    return v == null ? '—' : `${v.toFixed(1)}% / yr`;
+    return v == null ? '—' : `${v.toFixed(1)}${t('unit.percentPerYr')}`;
   }
   return p.unempDelta == null
     ? '—'
-    : `${p.unempDelta >= 0 ? '+' : ''}${p.unempDelta.toFixed(1)} pp`;
+    : `${p.unempDelta >= 0 ? '+' : ''}${p.unempDelta.toFixed(1)} ${t('unit.pp')}`;
 };
 
 export default function MigrationVsLaborOutcome({
@@ -88,6 +91,7 @@ export default function MigrationVsLaborOutcome({
   defaultMetric = 'unemp',
   feGrowthByCity,
 }: Props) {
+  const t = useT();
   const hasFe = !!feGrowthByCity && feGrowthByCity.size > 0;
   const [metric, setMetric] = useState<Metric>(defaultMetric);
 
@@ -324,38 +328,38 @@ export default function MigrationVsLaborOutcome({
 
   const natYLabel =
     metric === 'wage_premium_fe'
-      ? 'national pace (0%)'
+      ? t('scatter.ref.nationalPace0')
       : metric === 'wage_median'
-      ? `median ${natY.toFixed(1)}% / yr`
+      ? t('scatter.ref.medianPerYr', { v: natY.toFixed(1) })
       : isPct(metric)
-      ? `nat. avg ${natY.toFixed(1)}% / yr`
-      : `nat. avg ${natY >= 0 ? '+' : ''}${natY.toFixed(1)} pp`;
+      ? t('scatter.ref.natAvgPerYr', { v: natY.toFixed(1) })
+      : t('labor.ref.natAvgPp', { v: `${natY >= 0 ? '+' : ''}${natY.toFixed(1)}` });
 
   return (
     <div>
       <div className="chart-toolbar">
         <label className="chart-toolbar-control">
-          Y axis:
+          {t('charts.yAxis')}
           <select
             className="chart-toolbar-select"
             value={metric}
             onChange={(e) => handleMetricChange(e.target.value as Metric)}
           >
-            <option value="wage_median">Median wage growth (CAGR, %)</option>
-            <option value="wage_mean">Mean wage growth (CAGR, %)</option>
+            <option value="wage_median">{t('labor.opt.wageMedian')}</option>
+            <option value="wage_mean">{t('labor.opt.wageMean')}</option>
             {hasFe && (
-              <option value="wage_premium_fe">Wage-premium growth (FE, %)</option>
+              <option value="wage_premium_fe">{t('labor.opt.wagePremiumFe')}</option>
             )}
-            <option value="unemp">Δ unemployment (pp)</option>
+            <option value="unemp">{t('labor.opt.unemp')}</option>
           </select>
         </label>
         <span style={{ flex: 1 }} />
         <span className="chart-toolbar-hint">
-          {zoom ? 'Zoomed in' : 'Drag a rectangle to zoom in'}
+          {zoom ? t('charts.zoomedIn') : t('charts.dragToZoom')}
         </span>
         {zoom && (
           <button type="button" className="btn-link" onClick={() => setZoom(null)}>
-            Reset zoom
+            {t('charts.resetZoom')}
           </button>
         )}
       </div>
@@ -372,13 +376,13 @@ export default function MigrationVsLaborOutcome({
           <XAxis
             type="number"
             dataKey="migration"
-            name="Net migration"
+            name={t('scatter.tip.netMigration')}
             domain={xDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
             tickFormatter={(v) => `${v.toFixed(0)}%`}
             label={{
-              value: 'Net migration (10-yr), %',
+              value: t('scatter.xAxis'),
               position: 'insideBottom',
               offset: -22,
               style: { textAnchor: 'middle', fontSize: 13, fill: '#555' },
@@ -387,14 +391,14 @@ export default function MigrationVsLaborOutcome({
           <YAxis
             type="number"
             dataKey="y"
-            name={isPct(metric) ? 'Wage CAGR' : 'Δ unemployment'}
+            name={isPct(metric) ? t('labor.yname.wage') : t('labor.yname.unemp')}
             domain={yDomain}
             allowDataOverflow
             tick={{ fontSize: 12 }}
             width={60}
             tickFormatter={TICK_FMT[metric]}
             label={{
-              value: metricLabel(metric),
+              value: metricLabel(metric, t),
               angle: -90,
               position: 'insideLeft',
               offset: 12,
@@ -406,7 +410,7 @@ export default function MigrationVsLaborOutcome({
             stroke="#888"
             strokeDasharray="3 3"
             label={{
-              value: `median ${natMig.toFixed(1)}%`,
+              value: t('scatter.ref.median', { v: natMig.toFixed(1) }),
               position: 'insideTopLeft',
               fontSize: 10,
               fill: '#666',
@@ -439,16 +443,18 @@ export default function MigrationVsLaborOutcome({
                   }}
                 >
                   <strong>{p.city}</strong>
-                  <div>Net migration: {fmtNum(p.migration, 1)}%</div>
+                  <div>
+                    {t('scatter.tip.netMigration')}: {fmtNum(p.migration, 1)}%
+                  </div>
                   <div>
                     {metric === 'wage_premium_fe'
-                      ? 'Wage-premium growth'
+                      ? t('labor.tip.wagePremiumFe')
                       : metric === 'wage_median'
-                      ? 'Median wage CAGR'
+                      ? t('labor.tip.wageMedian')
                       : metric === 'wage_mean'
-                      ? 'Mean wage CAGR'
-                      : 'Δ unemployment'}
-                    : {tooltipFmt(p, metric)}
+                      ? t('labor.tip.wageMean')
+                      : t('labor.tip.unemp')}
+                    : {tooltipFmt(p, metric, t)}
                   </div>
                 </div>
               );

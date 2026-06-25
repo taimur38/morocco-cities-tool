@@ -11,6 +11,14 @@ import {
 } from 'recharts';
 import type { CityShiftShareRow } from '../../data/types';
 import { fmtInt } from '../../lib/format';
+import { useT } from '../../i18n/ui';
+
+type StepLabels = {
+  national: string;
+  industryMix: string;
+  localShare: string;
+  newIndustries: string;
+};
 
 type Step = {
   name: string;
@@ -31,7 +39,13 @@ const opacityFor = (_: Step['kind']) => 1;
 // Decomposes a city's 2014→2024 employment growth into four contributing
 // segments using a stacked-bar waterfall (Recharts' range-bar trick).
 export default function ShiftShareWaterfall({ row }: { row: CityShiftShareRow }) {
-  const steps = computeSteps(row);
+  const t = useT();
+  const steps = computeSteps(row, {
+    national: t('ss.step.national'),
+    industryMix: t('ss.step.industryMix'),
+    localShare: t('ss.step.localShare'),
+    newIndustries: t('ss.step.newIndustries'),
+  });
 
   return (
     <ResponsiveContainer width="100%" height={440}>
@@ -57,7 +71,7 @@ export default function ShiftShareWaterfall({ row }: { row: CityShiftShareRow })
                 <strong>{s.name}</strong>
                 <div>
                   {sign}
-                  {fmtInt.format(Math.abs(s.value))} workers
+                  {fmtInt.format(Math.abs(s.value))} {t('ss.workers')}
                 </div>
               </div>
             );
@@ -83,7 +97,7 @@ export default function ShiftShareWaterfall({ row }: { row: CityShiftShareRow })
   );
 }
 
-function computeSteps(row: CityShiftShareRow): Step[] {
+function computeSteps(row: CityShiftShareRow, labels: StepLabels): Step[] {
   const steps: Step[] = [];
   let running = 0;
 
@@ -105,11 +119,11 @@ function computeSteps(row: CityShiftShareRow): Step[] {
     running = next;
   };
 
-  addStep('National', row.national_share);
-  addStep('Industry mix', row.industry_mix);
-  addStep('Local share', row.local_share);
+  addStep(labels.national, row.national_share);
+  addStep(labels.industryMix, row.industry_mix);
+  addStep(labels.localShare, row.local_share);
   if (Math.abs(row.entry_share) > 0.5) {
-    addStep('New industries', row.entry_share);
+    addStep(labels.newIndustries, row.entry_share);
   }
 
   steps.push({

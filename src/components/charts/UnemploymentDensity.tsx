@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import type { CityPanelRow } from '../../data/types';
 import { cleanCityName } from '../../lib/derive';
+import { useT } from '../../i18n/ui';
 
 type Props = {
   rows: CityPanelRow[];
@@ -52,6 +53,7 @@ function kde(values: number[], nPoints = 120) {
 }
 
 export default function UnemploymentDensity({ rows, highlightCityId }: Props) {
+  const t = useT();
   const { density, markers } = useMemo(() => {
     const r24 = rows.filter((r) => r.year === 2024);
     const valid = r24
@@ -98,7 +100,7 @@ export default function UnemploymentDensity({ rows, highlightCityId }: Props) {
             tick={{ fontSize: 11, fill: '#666' }}
             tickFormatter={(v) => `${v.toFixed(0)}%`}
             label={{
-              value: 'Unemployment rate, 2024 — distribution across 63 cities',
+              value: t('unemp.xLabel'),
               position: 'insideBottom',
               offset: -14,
               style: { textAnchor: 'middle', fontSize: 12, fill: '#666' },
