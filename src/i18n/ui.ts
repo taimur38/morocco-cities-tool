@@ -305,6 +305,59 @@ export const UI: Record<string, Entry> = {
     fr: 'Ménages en habitat insalubre · plus foncé = plus élevé',
   },
   'map.unit.per100': { en: '{v} per 100', fr: '{v} pour 100' },
+  'map.unit.pp': { en: 'pp', fr: 'pts' },
+
+  // --- City map: level/change toggle ---------------------------------------
+  'map.colorBy': { en: 'Color by', fr: 'Colorer selon' },
+  'map.mode.level': { en: 'Level', fr: 'Niveau' },
+  'map.mode.change': { en: 'Change', fr: 'Évolution' },
+  'map.mode.changeTitle': {
+    en: 'Change over the decade (2014 → 2024)',
+    fr: 'Évolution sur la décennie (2014 → 2024)',
+  },
+  'map.mode.aria': {
+    en: 'Show current level or 10-year change',
+    fr: 'Afficher le niveau actuel ou l’évolution sur 10 ans',
+  },
+  'map.changeLabel': { en: 'Change in {indicator}', fr: 'Évolution · {indicator}' },
+  'map.communeChange': {
+    en: '{n} {commune} · change 2014 → 2024',
+    fr: '{n} {commune} · évolution 2014 → 2024',
+  },
+
+  // --- City map: change-view legend hints (green↔red direction) ------------
+  'map.chgHint.unemployment': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
+  'map.chgHint.female_unemployment': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
+  'map.chgHint.lfp': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
+  'map.chgHint.female_lfp': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
+  'map.chgHint.tertiary': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
+  'map.chgHint.dependency': {
+    en: 'Green = rose · red = fell · per 100, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · pour 100, 2014→2024',
+  },
+  'map.chgHint.population': {
+    en: 'Green = grew · red = shrank · percent, 2014→2024',
+    fr: 'Vert = croissance · rouge = déclin · pourcent, 2014→2024',
+  },
+  'map.chgHint.slum': {
+    en: 'Green = rose · red = fell · points, 2014→2024',
+    fr: 'Vert = hausse · rouge = baisse · points, 2014→2024',
+  },
 
   // --- City map: legend / chrome -------------------------------------------
   'map.loading': { en: 'Loading map…', fr: 'Chargement de la carte…' },

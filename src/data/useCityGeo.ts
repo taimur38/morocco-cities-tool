@@ -18,6 +18,18 @@ export type CommuneProps = {
   dependency_ratio: number | null;
   population: number | null;
   slum_pct: number | null;
+  // 10-year change (2014 → 2024) for the explorer map's "change" view, also
+  // attached upstream by 06-city-maps-geo.R. Rates/ratios are in points
+  // (2024 − 2014); population is a percent change. Null where either round is
+  // missing. Migration has no change field — it is already a 10-yr flow.
+  unemployment_rate_chg: number | null;
+  female_unemployment_rate_chg: number | null;
+  lfp_rate_chg: number | null;
+  female_lfp_rate_chg: number | null;
+  tertiary_pct_chg: number | null;
+  dependency_ratio_chg: number | null;
+  population_chg_pct: number | null;
+  slum_pct_chg: number | null;
 };
 
 export type CityFeature = Feature<Polygon | MultiPolygon, CommuneProps>;

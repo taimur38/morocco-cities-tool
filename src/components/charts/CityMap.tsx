@@ -7,6 +7,10 @@ import {
   type CityFeature,
   type CommuneProps,
 } from '../../data/useCityGeo';
+import { useLang, type Lang } from '../../i18n/context';
+import { useT } from '../../i18n/ui';
+
+type T = ReturnType<typeof useT>;
 
 type Variant = 'migration' | 'definition' | 'explorer';
 
@@ -32,6 +36,10 @@ const DEFINITION_FILL = '#d6a8a8';
 // from the green/red diverging migration scale, and never the red accent.
 const SEQ_LO = '#e9eef2';
 const SEQ_HI = '#16527e';
+// The "change over 10 years" view reuses the migration diverging scale for
+// consistency: green = rose over the decade, red = fell, anchored at zero.
+const CHG_DEC = NEG; // fell over the decade
+const CHG_INC = POS; // rose over the decade
 
 const WIDTH = 720;
 const HEIGHT = 480;
@@ -61,107 +69,79 @@ type IndicatorDef = {
   fmt: (v: number) => string;
   log?: boolean; // log-scale the sequential ramp (population is heavily skewed)
   hint: string; // legend note explaining the colour direction
+  // 10-year change variant, present for every indicator except migration (which
+  // is already a flow). When present, the explorer's Level/Change toggle is
+  // enabled; the change view always uses the diverging orange↔blue scale.
+  change?: {
+    accessor: (p: CommuneProps) => number | null;
+    fmt: (v: number) => string;
+    hint: string;
+  };
 };
 
 const fmtPct1 = (v: number) => `${v.toFixed(1)}%`;
 const fmtSignedPct1 = (v: number) =>
   `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)}%`;
-const fmtPop = (v: number) => Math.round(v).toLocaleString('en-US');
-// Dependency ratio is a count per 100, not a percentage.
-const fmtRatio1 = (v: number) => `${v.toFixed(1)} per 100`;
 
-const INDICATORS: IndicatorDef[] = [
-  {
-    key: 'migration',
-    label: 'Net migration (10-yr)',
-    kind: 'diverging',
-    accessor: (p) => p.mig_10yr_net_pct,
-    fmt: fmtSignedPct1,
-    hint: 'Green = net inflow · Red = net outflow',
-  },
-  {
-    key: 'unemployment',
-    label: 'Unemployment rate',
-    kind: 'sequential',
-    accessor: (p) => p.unemployment_rate,
-    fmt: fmtPct1,
-    hint: 'Darker = higher unemployment',
-  },
-  {
-    key: 'female_unemployment',
-    label: 'Female unemployment rate',
-    kind: 'sequential',
-    accessor: (p) => p.female_unemployment_rate,
-    fmt: fmtPct1,
-    hint: 'Darker = higher female unemployment',
-  },
-  {
-    key: 'lfp',
-    label: 'Labor-force participation',
-    kind: 'sequential',
-    accessor: (p) => p.lfp_rate,
-    fmt: fmtPct1,
-    hint: 'Darker = higher participation',
-  },
-  {
-    key: 'female_lfp',
-    label: 'Female labor-force participation',
-    kind: 'sequential',
-    accessor: (p) => p.female_lfp_rate,
-    fmt: fmtPct1,
-    hint: 'Women in the labor force · darker = higher',
-  },
-  {
-    key: 'tertiary',
-    label: 'Tertiary education',
-    kind: 'sequential',
-    accessor: (p) => p.tertiary_pct,
-    fmt: fmtPct1,
-    hint: 'Adults with tertiary education · darker = higher',
-  },
-  {
-    key: 'dependency',
-    label: 'Dependency ratio',
-    kind: 'sequential',
-    accessor: (p) => p.dependency_ratio,
-    fmt: fmtRatio1,
-    hint: 'Dependents per 100 working-age · darker = higher',
-  },
-  {
-    key: 'population',
-    label: 'Population',
-    kind: 'sequential',
-    accessor: (p) => p.population,
-    fmt: fmtPop,
-    log: true,
-    hint: 'Legal population · log-scaled · darker = larger',
-  },
-  {
-    key: 'slum',
-    label: 'Slum housing share',
-    kind: 'sequential',
-    accessor: (p) => p.slum_pct,
-    fmt: fmtPct1,
-    hint: 'Households in slum housing · darker = higher',
-  },
-];
+// Indicator definitions, resolved per language: labels and hints come from the
+// dictionary; population/ratio formatters localize. Accessors, scale kind and
+// log-scaling are language-independent.
+function buildIndicators(t: T, lang: Lang): IndicatorDef[] {
+  const fmtPop = (v: number) =>
+    Math.round(v).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-US');
+  // Dependency ratio is a count per 100, not a percentage.
+  const fmtRatio1 = (v: number) => t('map.unit.per100', { v: v.toFixed(1) });
+  // Change formatters: rate/share deltas read in signed percentage points;
+  // dependency in signed per-100 points; population as a signed percent change.
+  const sign = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '');
+  const fmtSignedPp = (v: number) => `${sign(v)}${Math.abs(v).toFixed(1)} ${t('map.unit.pp')}`;
+  const fmtSignedRatio = (v: number) =>
+    t('map.unit.per100', { v: `${sign(v)}${Math.abs(v).toFixed(1)}` });
+  const base: {
+    key: IndicatorKey;
+    kind: 'diverging' | 'sequential';
+    accessor: (p: CommuneProps) => number | null;
+    fmt: (v: number) => string;
+    log?: boolean;
+    change?: { accessor: (p: CommuneProps) => number | null; fmt: (v: number) => string };
+  }[] = [
+    { key: 'migration', kind: 'diverging', accessor: (p) => p.mig_10yr_net_pct, fmt: fmtSignedPct1 },
+    { key: 'unemployment', kind: 'sequential', accessor: (p) => p.unemployment_rate, fmt: fmtPct1, change: { accessor: (p) => p.unemployment_rate_chg, fmt: fmtSignedPp } },
+    { key: 'female_unemployment', kind: 'sequential', accessor: (p) => p.female_unemployment_rate, fmt: fmtPct1, change: { accessor: (p) => p.female_unemployment_rate_chg, fmt: fmtSignedPp } },
+    { key: 'lfp', kind: 'sequential', accessor: (p) => p.lfp_rate, fmt: fmtPct1, change: { accessor: (p) => p.lfp_rate_chg, fmt: fmtSignedPp } },
+    { key: 'female_lfp', kind: 'sequential', accessor: (p) => p.female_lfp_rate, fmt: fmtPct1, change: { accessor: (p) => p.female_lfp_rate_chg, fmt: fmtSignedPp } },
+    { key: 'tertiary', kind: 'sequential', accessor: (p) => p.tertiary_pct, fmt: fmtPct1, change: { accessor: (p) => p.tertiary_pct_chg, fmt: fmtSignedPp } },
+    { key: 'dependency', kind: 'sequential', accessor: (p) => p.dependency_ratio, fmt: fmtRatio1, change: { accessor: (p) => p.dependency_ratio_chg, fmt: fmtSignedRatio } },
+    { key: 'population', kind: 'sequential', accessor: (p) => p.population, fmt: fmtPop, log: true, change: { accessor: (p) => p.population_chg_pct, fmt: fmtSignedPct1 } },
+    { key: 'slum', kind: 'sequential', accessor: (p) => p.slum_pct, fmt: fmtPct1, change: { accessor: (p) => p.slum_pct_chg, fmt: fmtSignedPp } },
+  ];
+  return base.map((d) => ({
+    ...d,
+    label: t(`map.ind.${d.key}`),
+    hint: t(`map.hint.${d.key}`),
+    change: d.change && { ...d.change, hint: t(`map.chgHint.${d.key}`) },
+  }));
+}
 
-// Diverging color scale: red for outflows, green for inflows. Anchored at zero,
-// but each side has its own saturation point — some cities have communes that
-// are -15% on the outflow side but +60% on the inflow side, and forcing a
-// symmetric scale washes the inflow side into a single hue.
-function colorForMig(
+// Diverging color scale anchored at zero, with an independent saturation point
+// per side — some cities have communes at -15% on one side but +60% on the
+// other, and forcing a symmetric scale washes the larger side into a single
+// hue. Used by both the migration view (red/green) and the change view
+// (orange/blue), differing only in the two end colours.
+function divergingColor(
   v: number | null | undefined,
   negBound: number,
   posBound: number,
+  negColor: string,
+  posColor: string,
 ): string {
   if (v == null || !Number.isFinite(v)) return NEUTRAL;
   if (v >= 0) {
     const t = posBound > 0 ? Math.min(1, v / posBound) : 0;
-    return blendHex(NEUTRAL, POS, t);
+    return blendHex(NEUTRAL, posColor, t);
   }
   const t = negBound > 0 ? Math.min(1, -v / negBound) : 0;
-  return blendHex(NEUTRAL, NEG, t);
+  return blendHex(NEUTRAL, negColor, t);
 }
 
 // Sequential blue ramp over [min, max] for this city's communes. Optionally
@@ -240,12 +220,19 @@ function bboxFitObject(b: [number, number, number, number]): GeoPermissibleObjec
 export default function CityMap({ slug, cityName, variant = 'migration' }: Props) {
   const cityGeo = useCityGeo(slug);
   const baseGeo = useNationalBase();
+  const t = useT();
+  const { lang } = useLang();
+  const INDICATORS = useMemo(() => buildIndicators(t, lang), [t, lang]);
   const [hover, setHover] = useState<{ x: number; y: number; f: CityFeature } | null>(null);
 
   // Explorer-only: which indicator drives the commune fill. Defaults to
   // population so the explorer opens on a different view than the dedicated
   // net-migration map earlier on the page.
   const [indicatorKey, setIndicatorKey] = useState<IndicatorKey>('population');
+
+  // Explorer-only: 'level' shows the 2024 value, 'change' the 2014→2024 delta.
+  // Forced to 'level' for indicators without a change variant (migration).
+  const [mode, setMode] = useState<'level' | 'change'>('level');
 
   // Drag-to-zoom: zoomBbox overrides the default city bbox when set;
   // dragRect is the in-progress selection in svg pixel coords.
@@ -354,9 +341,11 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
     return out;
   }, [baseGeo.data, pathFn]);
 
-  if (cityGeo.loading || baseGeo.loading) return <p className="loading">Loading map…</p>;
-  if (cityGeo.error) return <p className="error">Could not load map: {cityGeo.error.message}</p>;
-  if (baseGeo.error) return <p className="error">Could not load base map: {baseGeo.error.message}</p>;
+  if (cityGeo.loading || baseGeo.loading) return <p className="loading">{t('map.loading')}</p>;
+  if (cityGeo.error)
+    return <p className="error">{t('map.loadError', { msg: cityGeo.error.message })}</p>;
+  if (baseGeo.error)
+    return <p className="error">{t('map.baseLoadError', { msg: baseGeo.error.message })}</p>;
   if (!cityGeo.data || !pathFn) return null;
 
   const cityCommuneIds = new Set(
@@ -376,34 +365,55 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
     variant === 'explorer' ? indicatorKey : variant === 'migration' ? 'migration' : null;
   const activeDef = activeKey ? INDICATORS.find((d) => d.key === activeKey) ?? null : null;
 
-  // Derive the colour domain for the active indicator from this city's communes.
-  // Diverging: two bounds joined at zero (the negative side is capped at −100%,
-  // the positive side anchored to the local maximum). Sequential: plain min/max.
+  // The effective view, resolving the level/change toggle. Change is only honored
+  // when the active indicator carries a change variant; otherwise we fall back to
+  // the level. Three scale shapes: 'mig' (red/green diverging), 'seq' (blue ramp)
+  // and 'chg' (orange/blue diverging).
+  const showChange = mode === 'change' && !!activeDef?.change;
+  const scale: 'none' | 'mig' | 'seq' | 'chg' = !activeDef
+    ? 'none'
+    : showChange
+      ? 'chg'
+      : activeDef.kind === 'diverging'
+        ? 'mig'
+        : 'seq';
+  const view =
+    activeDef && showChange && activeDef.change
+      ? { accessor: activeDef.change.accessor, fmt: activeDef.change.fmt, hint: activeDef.change.hint }
+      : activeDef
+        ? { accessor: activeDef.accessor, fmt: activeDef.fmt, hint: activeDef.hint }
+        : null;
+
+  // Derive the colour domain for the active view from this city's communes.
+  // Diverging scales ('mig'/'chg'): two bounds joined at zero, each anchored to
+  // its side's local maximum (migration additionally caps outflow at −100%).
+  // Sequential: plain min/max.
   let negBound = 0;
   let posBound = 0;
   let seqMin = Infinity;
   let seqMax = -Infinity;
-  if (activeDef) {
+  if (view) {
     for (const f of cityCommunes) {
-      const v = activeDef.accessor(f.properties);
+      const v = view.accessor(f.properties);
       if (v == null || !Number.isFinite(v)) continue;
-      if (activeDef.kind === 'diverging') {
-        if (v < 0) negBound = Math.max(negBound, -v);
-        else posBound = Math.max(posBound, v);
-      } else {
+      if (scale === 'seq') {
         if (v < seqMin) seqMin = v;
         if (v > seqMax) seqMax = v;
+      } else {
+        if (v < 0) negBound = Math.max(negBound, -v);
+        else posBound = Math.max(posBound, v);
       }
     }
-    negBound = Math.min(100, negBound);
+    if (scale === 'mig') negBound = Math.min(100, negBound);
   }
   const hasSeqDomain = Number.isFinite(seqMin) && Number.isFinite(seqMax);
 
   function fillFor(p: CommuneProps): string {
-    if (!activeDef) return DEFINITION_FILL;
-    const v = activeDef.accessor(p);
-    if (activeDef.kind === 'diverging') return colorForMig(v, negBound, posBound);
-    return sequentialColor(v, seqMin, seqMax, !!activeDef.log);
+    if (!view) return DEFINITION_FILL;
+    const v = view.accessor(p);
+    if (scale === 'seq') return sequentialColor(v, seqMin, seqMax, !!activeDef?.log);
+    if (scale === 'chg') return divergingColor(v, negBound, posBound, CHG_DEC, CHG_INC);
+    return divergingColor(v, negBound, posBound, NEG, POS);
   }
 
   // Decide which city-commune labels to draw. Skip ones whose projected area is
@@ -421,17 +431,27 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
     labels.push({ x: cx, y: cy, text: name });
   }
 
+  // Indicator label as shown in the tooltip/aria, qualified in change mode.
+  const viewLabel = activeDef
+    ? showChange
+      ? t('map.changeLabel', { indicator: activeDef.label })
+      : activeDef.label
+    : '';
+
   const ariaLabel =
     variant === 'definition'
-      ? `Map showing the communes that make up ${cityName}'s functional urban area`
-      : `Map of communes in ${cityName} colored by ${activeDef?.label ?? 'indicator'}`;
+      ? t('map.aria.definition', { city: cityName })
+      : t('map.aria.colored', {
+          city: cityName,
+          indicator: viewLabel || t('map.aria.indicatorFallback'),
+        });
 
   return (
     <div className="city-map-wrap">
       {variant === 'explorer' && (
         <div className="chart-toolbar">
           <label className="chart-toolbar-control">
-            Color by
+            {t('map.colorBy')}
             <select
               className="chart-toolbar-select"
               value={indicatorKey}
@@ -444,8 +464,39 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
               ))}
             </select>
           </label>
+          {/* Level / 10-yr change toggle. Disabled (and shown as Level) when the
+              active indicator has no change variant — i.e. net migration, which
+              is already a 10-year flow. */}
+          <div className="seg-toggle" role="group" aria-label={t('map.mode.aria')}>
+            <button
+              type="button"
+              className={!showChange ? 'active' : ''}
+              aria-pressed={!showChange}
+              onClick={() => setMode('level')}
+            >
+              {t('map.mode.level')}
+            </button>
+            <button
+              type="button"
+              className={showChange ? 'active' : ''}
+              aria-pressed={showChange}
+              disabled={!activeDef?.change}
+              title={t('map.mode.changeTitle')}
+              onClick={() => setMode('change')}
+            >
+              {t('map.mode.change')}
+            </button>
+          </div>
           <span className="chart-toolbar-hint">
-            {cityCommunes.length} commune{cityCommunes.length === 1 ? '' : 's'} · census 2024
+            {showChange
+              ? t('map.communeChange', {
+                  n: cityCommunes.length,
+                  commune: cityCommunes.length === 1 ? t('map.commune.one') : t('map.commune.many'),
+                })
+              : t('map.communeCensus', {
+                  n: cityCommunes.length,
+                  commune: cityCommunes.length === 1 ? t('map.commune.one') : t('map.commune.many'),
+                })}
           </span>
         </div>
       )}
@@ -558,12 +609,12 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
         {hover && !dragging && (
           <div className="map-tooltip" style={{ left: hover.x + 12, top: hover.y + 12 }}>
             <strong>{hover.f.properties.commune_name ?? '—'}</strong>
-            {activeDef && (
+            {view && (
               <div>
-                {activeDef.label}:{' '}
+                {viewLabel}:{' '}
                 {(() => {
-                  const v = activeDef.accessor(hover.f.properties);
-                  return v != null && Number.isFinite(v) ? activeDef.fmt(v) : '—';
+                  const v = view.accessor(hover.f.properties);
+                  return v != null && Number.isFinite(v) ? view.fmt(v) : '—';
                 })()}
               </div>
             )}
@@ -576,12 +627,14 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
             className="map-reset-zoom"
             onClick={() => setZoomBbox(null)}
           >
-            Reset zoom
+            {t('charts.resetZoom')}
           </button>
         )}
 
         <MapLegend
-          activeDef={activeDef}
+          scale={scale}
+          fmt={view?.fmt ?? null}
+          hint={view?.hint ?? null}
           communeCount={cityCommunes.length}
           negBound={negBound}
           posBound={posBound}
@@ -596,7 +649,9 @@ export default function CityMap({ slug, cityName, variant = 'migration' }: Props
 }
 
 function MapLegend({
-  activeDef,
+  scale,
+  fmt,
+  hint,
   communeCount,
   negBound,
   posBound,
@@ -605,7 +660,9 @@ function MapLegend({
   hasSeqDomain,
   zoomed,
 }: {
-  activeDef: IndicatorDef | null;
+  scale: 'none' | 'mig' | 'seq' | 'chg';
+  fmt: ((v: number) => string) | null;
+  hint: string | null;
   communeCount: number;
   negBound: number;
   posBound: number;
@@ -614,15 +671,20 @@ function MapLegend({
   hasSeqDomain: boolean;
   zoomed: boolean;
 }) {
-  const zoomNote = zoomed ? 'Drag to zoom further · Reset to return' : 'Drag to zoom in on an area';
-  const baseNote = 'Grey = neighboring communes · Blue = ocean · Dashed line: FUA boundary';
+  const t = useT();
+  const zoomNote = zoomed ? t('map.legend.zoomFurther') : t('map.legend.zoomIn');
+  const baseNote = t('map.legend.base');
 
   // Definition variant — no indicator, just the explainer.
-  if (!activeDef) {
+  if (scale === 'none' || !fmt) {
     return (
       <div className="map-legend">
         <div className="map-legend-note">
-          {communeCount} commune{communeCount === 1 ? '' : 's'} make up this city · {baseNote}
+          {t('map.legend.makeUp', {
+            n: communeCount,
+            commune: communeCount === 1 ? t('map.commune.one') : t('map.commune.many'),
+            base: baseNote,
+          })}
         </div>
         <div className="map-legend-note">{zoomNote}</div>
       </div>
@@ -630,7 +692,7 @@ function MapLegend({
   }
 
   // Sequential indicator — single blue ramp light→deep over the city's range.
-  if (activeDef.kind === 'sequential') {
+  if (scale === 'seq') {
     return (
       <div className="map-legend">
         <div
@@ -638,32 +700,40 @@ function MapLegend({
           style={{ background: `linear-gradient(to right, ${SEQ_LO} 0%, ${SEQ_HI} 100%)` }}
         />
         <div className="map-legend-labels">
-          <span>{hasSeqDomain ? activeDef.fmt(seqMin) : '—'}</span>
-          <span>{hasSeqDomain ? activeDef.fmt(seqMax) : 'no data'}</span>
+          <span>{hasSeqDomain ? fmt(seqMin) : '—'}</span>
+          <span>{hasSeqDomain ? fmt(seqMax) : t('map.legend.noData')}</span>
         </div>
-        <div className="map-legend-note">{activeDef.hint}</div>
+        {hint && <div className="map-legend-note">{hint}</div>}
         <div className="map-legend-note">{baseNote}</div>
         <div className="map-legend-note">{zoomNote}</div>
       </div>
     );
   }
 
-  // Diverging indicator (migration) — two scales joined at the zero point. The
-  // bar is a single CSS gradient so the transition reads as one seamless ramp;
-  // the zero label is positioned at the proportional zero point.
+  // Diverging indicators — two scales joined at the zero point. The bar is a
+  // single CSS gradient so the transition reads as one seamless ramp; the zero
+  // label is positioned at the proportional zero point. Migration uses red/green
+  // and outflow/inflow labels; change uses orange/blue and the indicator's own
+  // formatter for the signed bounds.
+  const negColor = scale === 'chg' ? CHG_DEC : NEG;
+  const posColor = scale === 'chg' ? CHG_INC : POS;
   const total = negBound + posBound;
   const zeroPct = total > 0 ? (negBound / total) * 100 : 50;
-  const fmt = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%`;
+  const migFmt = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(0)}%`;
+  const loLabel =
+    scale === 'chg' ? fmt(-negBound) : t('map.legend.outflow', { v: migFmt(-negBound) });
+  const hiLabel =
+    scale === 'chg' ? fmt(posBound) : t('map.legend.inflow', { v: migFmt(posBound) });
   return (
     <div className="map-legend">
       <div
         className="map-legend-bar"
         style={{
-          background: `linear-gradient(to right, ${NEG} 0%, ${NEUTRAL} ${zeroPct.toFixed(2)}%, ${POS} 100%)`,
+          background: `linear-gradient(to right, ${negColor} 0%, ${NEUTRAL} ${zeroPct.toFixed(2)}%, ${posColor} 100%)`,
         }}
       />
       <div className="map-legend-labels" style={{ position: 'relative' }}>
-        <span>{fmt(-negBound)} (outflow)</span>
+        <span>{loLabel}</span>
         <span
           style={{
             position: 'absolute',
@@ -671,10 +741,11 @@ function MapLegend({
             transform: 'translateX(-50%)',
           }}
         >
-          0%
+          0
         </span>
-        <span>{fmt(posBound)} (inflow)</span>
+        <span>{hiLabel}</span>
       </div>
+      {scale === 'chg' && hint && <div className="map-legend-note">{hint}</div>}
       <div className="map-legend-note">{baseNote}</div>
       <div className="map-legend-note">{zoomNote}</div>
     </div>
