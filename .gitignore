@@ -5,13 +5,9 @@ dist/
 *.tsbuildinfo
 .DS_Store
 
-# Override the root *.html ignore — we need Vite's entry HTML tracked.
-!index.html
-!src/**/*.html
+# Data snapshots are loaded at runtime, never committed. The build step
+# (scripts/copy-data.mjs) populates public/data/ from the upstream pipeline.
+public/data/
 
-# Override the root **/data/ ignore for src/data/ — that rule is meant for the
-# gitignored data snapshots (public/data/, repo data/), but it also swallows the
-# TypeScript data layer (loaders, hooks, types), which is source and must be
-# versioned. Re-include the directory, then its sources.
-!src/data/
-!src/data/*.ts
+# Local build artifact.
+morocco-cities-tool-build.zip
