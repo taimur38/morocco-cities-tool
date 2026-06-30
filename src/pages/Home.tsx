@@ -36,6 +36,7 @@ export default function Home() {
   return (
     <article>
       <h2>{c.title[lang]}</h2>
+      <p className="byline">{c.byline[lang]}</p>
       <p>{c.introP1[lang]}</p>
       <p>{c.introP2[lang]}</p>
 

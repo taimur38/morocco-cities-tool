@@ -157,6 +157,12 @@ strong { font-weight: 600; }
 
 .muted { color: var(--muted); }
 
+.byline {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0 0 1.6rem;
+}
+
 .eyebrow {
   display: block;
   font-family: 'JetBrains Mono', ui-monospace, monospace;

@@ -19,6 +19,25 @@ export const homeContent = {
     fr: <>Les villes du Maroc au cours de la dernière décennie</>,
   },
 
+  byline: {
+    en: (
+      <>
+        Taimur Shah ·{' '}
+        <a href="https://growthlab.hks.harvard.edu/" target="_blank" rel="noreferrer">
+          Harvard Growth Lab
+        </a>
+      </>
+    ),
+    fr: (
+      <>
+        Taimur Shah ·{' '}
+        <a href="https://growthlab.hks.harvard.edu/" target="_blank" rel="noreferrer">
+          Harvard Growth Lab
+        </a>
+      </>
+    ),
+  },
+
   introP1: {
     en: (
       <>
