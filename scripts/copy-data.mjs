@@ -32,8 +32,20 @@ const EXTRA = [
 ];
 
 if (!existsSync(SRC)) {
+  // A standalone checkout (e.g. an outside collaborator cloning this repo on
+  // its own) has no upstream pipeline at ../04-spatial-equilibrium. That is
+  // fine as long as public/data/ was already populated from a separately
+  // provided data bundle — in that case we skip the copy and use what's there.
+  const haveData = existsSync(DEST) && FILES.some((f) => existsSync(join(DEST, f)));
+  if (haveData) {
+    console.warn(`[copy-data] upstream pipeline not found at ${SRC}`);
+    console.warn('  Using the existing public/data/ snapshot. Skipping copy.');
+    process.exit(0);
+  }
   console.error(`[copy-data] source not found: ${SRC}`);
-  console.error('  Run the 04-spatial-equilibrium pipeline first.');
+  console.error('  This repo does not ship data. Either run the upstream');
+  console.error('  04-spatial-equilibrium pipeline, or obtain the data bundle and');
+  console.error('  unzip it into public/data/ (see README, "Getting the data").');
   process.exit(1);
 }
 
