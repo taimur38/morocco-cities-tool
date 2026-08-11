@@ -68,10 +68,6 @@ export const UI: Record<string, Entry> = {
     en: 'Sized by 2024 workers · {n} total',
     fr: 'Taille selon les effectifs 2024 · {n} au total',
   },
-  'charts.sizedBy2014': {
-    en: 'Sized by 2014 workers · {n} total',
-    fr: 'Taille selon les effectifs 2014 · {n} au total',
-  },
 
   // --- Wage-statistic adjective (agrees with "salaire", masculine) ----------
   'stat.adj.median': { en: 'median', fr: 'médian' },
@@ -172,6 +168,14 @@ export const UI: Record<string, Entry> = {
     en: 'Δ unemployment rate, 2014→2024 (pp)',
     fr: 'Δ taux de chômage, 2014→2024 (pts)',
   },
+  'labor.metric.expectedWage': {
+    en: 'Expected wage (1−u) × mean wage, CAGR 2014–2024 (%)',
+    fr: 'Salaire espéré (1−u) × salaire moyen, TCAC 2014–2024 (%)',
+  },
+  'labor.metric.expectedPremium': {
+    en: 'Expected-wage premium growth (%/yr)',
+    fr: 'Croissance de la prime de salaire espéré (%/an)',
+  },
   'labor.opt.wageMedian': {
     en: 'Median wage growth (CAGR, %)',
     fr: 'Croissance du salaire médian (TCAC, %)',
@@ -184,6 +188,14 @@ export const UI: Record<string, Entry> = {
     en: 'Wage-premium growth (FE, %)',
     fr: 'Croissance de la prime salariale (EF, %)',
   },
+  'labor.opt.expectedWage': {
+    en: 'Expected wage growth — (1−u) × wage (CAGR, %)',
+    fr: 'Croissance du salaire espéré — (1−u) × salaire (TCAC, %)',
+  },
+  'labor.opt.expectedPremium': {
+    en: 'Expected-wage premium growth (%/yr)',
+    fr: 'Croissance de la prime de salaire espéré (%/an)',
+  },
   'labor.opt.unemp': { en: 'Δ unemployment (pp)', fr: 'Δ chômage (pts)' },
   'labor.yname.wage': { en: 'Wage CAGR', fr: 'TCAC du salaire' },
   'labor.yname.unemp': { en: 'Δ unemployment', fr: 'Δ chômage' },
@@ -193,6 +205,14 @@ export const UI: Record<string, Entry> = {
   },
   'labor.tip.wageMedian': { en: 'Median wage CAGR', fr: 'TCAC du salaire médian' },
   'labor.tip.wageMean': { en: 'Mean wage CAGR', fr: 'TCAC du salaire moyen' },
+  'labor.tip.expectedWage': {
+    en: 'Expected wage CAGR',
+    fr: 'TCAC du salaire espéré',
+  },
+  'labor.tip.expectedPremium': {
+    en: 'Expected-premium growth',
+    fr: 'Croissance de la prime espérée',
+  },
   'labor.tip.unemp': { en: 'Δ unemployment', fr: 'Δ chômage' },
   'labor.ref.natAvgPp': {
     en: 'nat. avg {v} pp',
@@ -405,8 +425,6 @@ export const UI: Record<string, Entry> = {
   'map.aria.indicatorFallback': { en: 'indicator', fr: 'indicateur' },
 
   // --- Treemap legends ------------------------------------------------------
-  'legend.lost': { en: 'lost', fr: 'perdu' },
-  'legend.gained': { en: 'gained', fr: 'gagné' },
   'legend.wage.lowerPay': { en: 'lower pay', fr: 'rémunération plus faible' },
   'legend.wage.higherPay': { en: 'higher pay', fr: 'rémunération plus élevée' },
   'legend.wage.declining': { en: 'declining', fr: 'en baisse' },
@@ -452,19 +470,6 @@ export const UI: Record<string, Entry> = {
     en: 'Wage growth, CAGR 2014–2024',
     fr: 'Croissance salariale, TCAC 2014–2024',
   },
-  'tm.opt.localShare': { en: 'Local-share effect', fr: 'Effet de part locale' },
-  'tm.opt.industryMix': {
-    en: 'Industry-mix effect',
-    fr: 'Effet de composition sectorielle',
-  },
-  'tm.note.localShare': {
-    en: 'Share of each industry’s 2014 workforce attributed to the local-share effect. Color scale capped at ±{bound}%.',
-    fr: 'Part des effectifs 2014 de chaque secteur attribuée à l’effet de part locale. Échelle de couleur plafonnée à ±{bound} %.',
-  },
-  'tm.note.industryMix': {
-    en: 'Share of each industry’s 2014 workforce attributed to the industry-mix effect. Color scale capped at ±{bound}%.',
-    fr: 'Part des effectifs 2014 de chaque secteur attribuée à l’effet de composition sectorielle. Échelle de couleur plafonnée à ±{bound} %.',
-  },
   'tm.note.wageGrowth': {
     en: 'Annualized growth in each industry’s mean daily wage between 2014 and 2024. Color scale capped at ±{bound}% / yr.',
     fr: 'Croissance annualisée du salaire journalier moyen de chaque secteur entre 2014 et 2024. Échelle de couleur plafonnée à ±{bound} % / an.',
@@ -488,6 +493,61 @@ export const UI: Record<string, Entry> = {
     fr: '{count} nouvelles industries · {n} travailleurs en 2024',
   },
 
+  // --- Industry movers bar chart -------------------------------------------
+  'mv.rankBy': { en: 'Rank by', fr: 'Classer par' },
+  'mv.topN': { en: 'Show top', fr: 'Afficher les' },
+  'mv.opt.movers': {
+    en: 'Largest employment change',
+    fr: 'Plus forte variation d’emploi',
+  },
+  'mv.opt.gap': {
+    en: 'Largest gap from expected',
+    fr: 'Plus grand écart à l’attendu',
+  },
+  'mv.opt.industryMix': {
+    en: 'Industry-mix effect',
+    fr: 'Effet de composition sectorielle',
+  },
+  'mv.opt.localShare': {
+    en: 'Local-share effect',
+    fr: 'Effet de part locale',
+  },
+  'mv.metric.observed': { en: 'Observed change', fr: 'Variation observée' },
+  'mv.metric.industryMix': {
+    en: 'Industry-mix effect',
+    fr: 'Effet de composition sectorielle',
+  },
+  'mv.metric.localShare': {
+    en: 'Local-share effect',
+    fr: 'Effet de part locale',
+  },
+  'mv.hint': {
+    en: '{n} of {total} industries present in 2014',
+    fr: '{n} sur {total} secteurs présents en 2014',
+  },
+  'mv.axis': {
+    en: 'Change in workers, 2014–2024',
+    fr: 'Variation des effectifs, 2014–2024',
+  },
+  'mv.axis.component': { en: '{m}, workers', fr: '{m}, effectifs' },
+  'mv.legend.gain': { en: '{m} (gain)', fr: '{m} (hausse)' },
+  'mv.legend.loss': { en: '{m} (loss)', fr: '{m} (baisse)' },
+  'mv.legend.expected': { en: 'Expected change', fr: 'Variation attendue' },
+  'mv.note': {
+    en: 'Expected change is the national-growth plus industry-mix components of the shift-share: what the industry would have added had it tracked its national trend. The span between the dot and the end of the bar is the local-share effect.',
+    fr: 'La variation attendue correspond aux composantes de croissance nationale et de composition sectorielle du shift-share : ce que le secteur aurait ajouté en suivant sa tendance nationale. L’écart entre le point et l’extrémité de la barre est l’effet de part locale.',
+  },
+  'mv.note.industryMix': {
+    en: 'Workers gained or lost because this industry grew or shrank nationally at a different pace than the economy as a whole — the composition the city inherited, not what it did with it.',
+    fr: 'Effectifs gagnés ou perdus parce que ce secteur a crû ou reculé, au niveau national, à un rythme différent de celui de l’économie dans son ensemble — la composition héritée par la ville, et non ce qu’elle en a fait.',
+  },
+  'mv.note.localShare': {
+    en: 'Workers gained or lost beyond what the industry’s national trend implied — the city-specific residual. This is the same quantity as the span between dot and bar in the observed-vs-expected views.',
+    fr: 'Effectifs gagnés ou perdus au-delà de ce qu’impliquait la tendance nationale du secteur — le résidu propre à la ville. Il s’agit de la même grandeur que l’écart entre le point et la barre dans les vues observé/attendu.',
+  },
+  'mv.tip.actual': { en: 'Observed change', fr: 'Variation observée' },
+  'mv.tip.expected': { en: 'Expected change', fr: 'Variation attendue' },
+
   // --- Treemap tooltips -----------------------------------------------------
   'tip.workers2024': { en: 'Workers 2024', fr: 'Effectifs 2024' },
   'tip.workers2014': { en: 'Workers 2014', fr: 'Effectifs 2014' },
@@ -505,19 +565,6 @@ export const UI: Record<string, Entry> = {
     fr: 'vs médiane nationale du secteur',
   },
   'tip.vsCityMedian': { en: 'vs. city median', fr: 'vs médiane de la ville' },
-  'tip.netChange': { en: 'Net change', fr: 'Variation nette' },
-  'tip.localShareEffect': {
-    en: 'Local-share effect',
-    fr: 'Effet de part locale',
-  },
-  'tip.industryMixEffect': {
-    en: 'Industry-mix effect',
-    fr: 'Effet de composition sectorielle',
-  },
-  'tip.of2014Workforce': {
-    en: 'of 2014 workforce',
-    fr: 'des effectifs de 2014',
-  },
   'tip.newEntrant0': { en: '0 (new entrant)', fr: '0 (nouvel arrivant)' },
 
   // --- NACE section labels (display only; English keys drive color) ---------

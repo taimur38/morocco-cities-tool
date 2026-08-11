@@ -12,7 +12,7 @@ import CitySelect from '../components/CitySelect';
 import SectionLevels from '../components/profile/SectionLevels';
 import MigrationVsLaborOutcome from '../components/charts/MigrationVsLaborOutcome';
 import ShiftShareWaterfall from '../components/charts/ShiftShareWaterfall';
-import IndustryTreemap from '../components/charts/IndustryTreemap';
+import IndustryMovers from '../components/charts/IndustryMovers';
 import NewIndustriesTreemap from '../components/charts/NewIndustriesTreemap';
 import SectionOverviewTreemap from '../components/charts/SectionOverviewTreemap';
 import CityMap from '../components/charts/CityMap';
@@ -169,7 +169,7 @@ export default function CityProfile() {
               <p className="loading">{cc.loadingIndustryDetail[lang](city.name)}</p>
             )}
             {ssIndustry.data && (
-              <IndustryTreemap
+              <IndustryMovers
                 rows={ssIndustry.data}
                 cityId={city.id}
                 translations={translations.data}
@@ -184,6 +184,7 @@ export default function CityProfile() {
             {ssIndustry.data && (
               <NewIndustriesTreemap
                 rows={ssIndustry.data}
+                complexity={industryComplexity.data}
                 cityId={city.id}
                 cityMedianWage={cityMedianWage}
                 translations={translations.data}

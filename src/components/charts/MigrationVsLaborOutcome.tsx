@@ -12,18 +12,23 @@ import {
   LabelList,
 } from 'recharts';
 import type { CityPanelRow } from '../../data/types';
-import { cityPairs, cagr, cleanCityName } from '../../lib/derive';
+import { cityPairs, cagr, annLogGrowth, cleanCityName } from '../../lib/derive';
 import { fmtNum } from '../../lib/format';
 import { useT } from '../../i18n/ui';
 
 type T = ReturnType<typeof useT>;
 
-type Metric = 'wage_median' | 'wage_mean' | 'unemp' | 'wage_premium_fe';
+type Metric =
+  | 'wage_median'
+  | 'wage_mean'
+  | 'expected_wage'
+  | 'expected_premium'
+  | 'unemp'
+  | 'wage_premium_fe';
 
-// Metrics measured in annualized % (vs. the unemployment Δ, in pp). Wage premium
-// growth is also a %/yr rate, so it shares the wage formatting and tooltip wording.
-const isPct = (m: Metric): m is 'wage_median' | 'wage_mean' | 'wage_premium_fe' =>
-  m === 'wage_median' || m === 'wage_mean' || m === 'wage_premium_fe';
+// Metrics measured in annualized % (vs. the unemployment Δ, in pp). Both premium
+// measures are also %/yr rates, so they share the wage formatting and wording.
+const isPct = (m: Metric): boolean => m !== 'unemp';
 
 type Point = {
   city_id: number;
@@ -35,6 +40,15 @@ type Point = {
   // Annualized change in the two-way (city + industry) fixed-effects wage premium,
   // computed upstream. Null for cities absent from the regression's coverage.
   premiumFe: number | null;
+  // (1 − u) · mean daily wage — the numerator of the utility expression this tool
+  // frames the narrative around: what a worker expects to earn once the risk of
+  // not finding work is priced in. Null only where u = 100%.
+  expectedWageCagr: number | null;
+  // The same quantity expressed as a premium: the city's employment-rate change
+  // net of the national one, plus the regression wage premium's growth. 0 means
+  // the city kept pace with the country on both employment risk and pay-for-mix.
+  // Null wherever the regression premium is (it inherits that coverage).
+  expectedPremium: number | null;
 };
 
 type Props = {
@@ -55,14 +69,20 @@ const BASE = '#1a1a1a';
 const metricLabel = (m: Metric, t: T): string => {
   if (m === 'wage_median') return t('labor.metric.wageMedian');
   if (m === 'wage_mean') return t('labor.metric.wageMean');
+  if (m === 'expected_wage') return t('labor.metric.expectedWage');
+  if (m === 'expected_premium') return t('labor.metric.expectedPremium');
   if (m === 'wage_premium_fe') return t('labor.metric.wagePremiumFe');
   return t('labor.metric.unemp');
 };
 
+const pct1 = (v: number) => `${v.toFixed(1)}%`;
+
 const TICK_FMT: Record<Metric, (v: number) => string> = {
-  wage_median: (v) => `${v.toFixed(1)}%`,
-  wage_mean: (v) => `${v.toFixed(1)}%`,
-  wage_premium_fe: (v) => `${v.toFixed(1)}%`,
+  wage_median: pct1,
+  wage_mean: pct1,
+  expected_wage: pct1,
+  expected_premium: pct1,
+  wage_premium_fe: pct1,
   unemp: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`,
 };
 
@@ -71,6 +91,10 @@ const yOf = (p: Point, m: Metric): number | null =>
     ? p.wageMedianCagr
     : m === 'wage_mean'
     ? p.wageMeanCagr
+    : m === 'expected_wage'
+    ? p.expectedWageCagr
+    : m === 'expected_premium'
+    ? p.expectedPremium
     : m === 'wage_premium_fe'
     ? p.premiumFe
     : p.unempDelta;
@@ -95,43 +119,15 @@ export default function MigrationVsLaborOutcome({
   const hasFe = !!feGrowthByCity && feGrowthByCity.size > 0;
   const [metric, setMetric] = useState<Metric>(defaultMetric);
 
-  const { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig } = useMemo(() => {
-    // Require migration, both wage statistics, AND unemployment delta to all
-    // be present so the data array stays stable across every toggle. Recharts
-    // animates scatter points by their position in the data array; if the city
-    // at index i changes, the dot interpolates to the wrong city's new position.
-    const points: Point[] = cityPairs(rows)
-      .map((p) => {
-        const mig = p.r2024.mig_10yr_net_pct;
-        const cMed = cagr(
-          p.r2014.cnss_median_daily_wage,
-          p.r2024.cnss_median_daily_wage,
-          10,
-        );
-        const cMean = cagr(
-          p.r2014.cnss_avg_daily_wage,
-          p.r2024.cnss_avg_daily_wage,
-          10,
-        );
-        const u14 = p.r2014.unemp_rate_total;
-        const u24 = p.r2024.unemp_rate_total;
-        if (mig == null || cMed == null || cMean == null || u14 == null || u24 == null)
-          return null;
-        return {
-          city_id: p.city_id,
-          city: cleanCityName(p.city_name),
-          migration: mig,
-          wageMedianCagr: cMed,
-          wageMeanCagr: cMean,
-          unempDelta: u24 - u14,
-          // Premium FE growth is optional coverage, so it's attached as a nullable
-          // field rather than gating a city out of the (stable) data array.
-          premiumFe: feGrowthByCity?.get(p.city_id) ?? null,
-        };
-      })
-      .filter((p): p is Point => p !== null);
-
-    // National mean-wage CAGR: days-weighted aggregate (the wage a typical
+  const {
+    points,
+    natWageMedianCagr,
+    natWageMeanCagr,
+    natExpectedWageCagr,
+    natUnempDelta,
+    natMig,
+  } = useMemo(() => {
+    // National mean-wage aggregate: days-weighted (the wage a typical
     // formal-sector worker actually saw).
     const aggMeanWage = (year: number) => {
       const ys = rows.filter((r) => r.year === year);
@@ -141,19 +137,8 @@ export default function MigrationVsLaborOutcome({
     };
     const natWageMeanCagr = cagr(aggMeanWage(2014), aggMeanWage(2024), 10) ?? 0;
 
-    // National median-wage CAGR: cross-city median (a national median can't be
-    // built from city aggregates).
-    const medCagrs = points.map((p) => p.wageMedianCagr).sort((a, b) => a - b);
-    const nMed = medCagrs.length;
-    const natWageMedianCagr =
-      nMed === 0
-        ? 0
-        : nMed % 2 === 0
-          ? (medCagrs[nMed / 2 - 1] + medCagrs[nMed / 2]) / 2
-          : medCagrs[(nMed - 1) / 2];
-
-    // National unemployment change = aggregate change in (unemp / labor force)
-    // across all cities. Built from levels — sum(employed) and sum(labor force).
+    // National unemployment rate = aggregate (unemp / labor force) across all
+    // cities. Built from levels — sum(employed) and sum(labor force).
     const aggUnemp = (year: number) => {
       const ys = rows.filter((r) => r.year === year);
       let emp = 0;
@@ -175,6 +160,94 @@ export default function MigrationVsLaborOutcome({
     const u24n = aggUnemp(2024);
     const natUnempDelta = u14n != null && u24n != null ? u24n - u14n : 0;
 
+    // Employment rate = 1 − u, with u given in percent. Null past u = 100%.
+    const empRate = (u: number | null | undefined) =>
+      u == null || u >= 100 ? null : 1 - u / 100;
+
+    // National expected wage = (1 − u_nat) · w_nat, using the same two national
+    // aggregates the other reference lines are built from, so the line stays
+    // consistent with the mean-wage and unemployment ones.
+    const aggExpectedWage = (year: number) => {
+      const w = aggMeanWage(year);
+      const e = empRate(aggUnemp(year));
+      return w == null || e == null ? null : w * e;
+    };
+    const natExpectedWageCagr =
+      cagr(aggExpectedWage(2014), aggExpectedWage(2024), 10) ?? 0;
+
+    // The national employment-rate trend that the *premium* nets out. Log growth
+    // rather than CAGR so it adds cleanly to the regression premium, which is
+    // itself an annualized log change.
+    const natEmpGrowth = annLogGrowth(empRate(u14n), empRate(u24n), 10) ?? 0;
+
+    // Require migration, both wage statistics, AND unemployment delta to all
+    // be present so the data array stays stable across every toggle. Recharts
+    // animates scatter points by their position in the data array; if the city
+    // at index i changes, the dot interpolates to the wrong city's new position.
+    const points: Point[] = cityPairs(rows)
+      .map((p) => {
+        const mig = p.r2024.mig_10yr_net_pct;
+        const cMed = cagr(
+          p.r2014.cnss_median_daily_wage,
+          p.r2024.cnss_median_daily_wage,
+          10,
+        );
+        const cMean = cagr(
+          p.r2014.cnss_avg_daily_wage,
+          p.r2024.cnss_avg_daily_wage,
+          10,
+        );
+        const u14 = p.r2014.unemp_rate_total;
+        const u24 = p.r2024.unemp_rate_total;
+        const w14 = p.r2014.cnss_avg_daily_wage;
+        const w24 = p.r2024.cnss_avg_daily_wage;
+        if (mig == null || cMed == null || cMean == null || u14 == null || u24 == null)
+          return null;
+
+        const e14 = empRate(u14);
+        const e24 = empRate(u24);
+        const premiumFe = feGrowthByCity?.get(p.city_id) ?? null;
+        // Expected wage: the utility numerator, (1 − u) · w.
+        const expectedWageCagr =
+          e14 == null || e24 == null || w14 == null || w24 == null
+            ? null
+            : cagr(e14 * w14, e24 * w24, 10);
+        // Its premium form: how much faster the city's employment rate grew than
+        // the country's, plus how much faster its pay grew for its industry mix.
+        const empPremium = annLogGrowth(e14, e24, 10);
+        const expectedPremium =
+          empPremium == null || premiumFe == null
+            ? null
+            : empPremium - natEmpGrowth + premiumFe;
+
+        return {
+          city_id: p.city_id,
+          city: cleanCityName(p.city_name),
+          migration: mig,
+          wageMedianCagr: cMed,
+          wageMeanCagr: cMean,
+          unempDelta: u24 - u14,
+          // Premium FE growth is optional coverage, so it's attached as a nullable
+          // field rather than gating a city out of the (stable) data array. The
+          // two expected-wage measures follow the same convention.
+          premiumFe,
+          expectedWageCagr,
+          expectedPremium,
+        };
+      })
+      .filter((p): p is Point => p !== null);
+
+    // National median-wage CAGR: cross-city median (a national median can't be
+    // built from city aggregates).
+    const medCagrs = points.map((p) => p.wageMedianCagr).sort((a, b) => a - b);
+    const nMed = medCagrs.length;
+    const natWageMedianCagr =
+      nMed === 0
+        ? 0
+        : nMed % 2 === 0
+          ? (medCagrs[nMed / 2 - 1] + medCagrs[nMed / 2]) / 2
+          : medCagrs[(nMed - 1) / 2];
+
     // Median is robust to the long right tail of fast-growing peripheries
     // (Ain El Aouda, Deroua, Tangier) which would otherwise drag a mean.
     const migsSorted = points.map((p) => p.migration).sort((a, b) => a - b);
@@ -186,7 +259,14 @@ export default function MigrationVsLaborOutcome({
         ? (migsSorted[mN / 2 - 1] + migsSorted[mN / 2]) / 2
         : migsSorted[(mN - 1) / 2];
 
-    return { points, natWageMedianCagr, natWageMeanCagr, natUnempDelta, natMig };
+    return {
+      points,
+      natWageMedianCagr,
+      natWageMeanCagr,
+      natExpectedWageCagr,
+      natUnempDelta,
+      natMig,
+    };
   }, [rows, feGrowthByCity]);
 
   // Map points to the active Y value for the current metric. No filtering
@@ -208,9 +288,11 @@ export default function MigrationVsLaborOutcome({
       ? natWageMedianCagr
       : metric === 'wage_mean'
         ? natWageMeanCagr
-        : metric === 'wage_premium_fe'
-          ? 0 // premium growth is already a deviation from the national pace
-          : natUnempDelta;
+        : metric === 'expected_wage'
+          ? natExpectedWageCagr
+          : metric === 'wage_premium_fe' || metric === 'expected_premium'
+            ? 0 // both premiums are already deviations from the national pace
+            : natUnempDelta;
 
   const [zoom, setZoom] = useState<Domain | null>(null);
   const [drag, setDrag] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -327,7 +409,7 @@ export default function MigrationVsLaborOutcome({
   const yDomain: [number | string, number | string] = zoom ? zoom.y : ['auto', 'auto'];
 
   const natYLabel =
-    metric === 'wage_premium_fe'
+    metric === 'wage_premium_fe' || metric === 'expected_premium'
       ? t('scatter.ref.nationalPace0')
       : metric === 'wage_median'
       ? t('scatter.ref.medianPerYr', { v: natY.toFixed(1) })
@@ -347,8 +429,14 @@ export default function MigrationVsLaborOutcome({
           >
             <option value="wage_median">{t('labor.opt.wageMedian')}</option>
             <option value="wage_mean">{t('labor.opt.wageMean')}</option>
+            <option value="expected_wage">{t('labor.opt.expectedWage')}</option>
             {hasFe && (
-              <option value="wage_premium_fe">{t('labor.opt.wagePremiumFe')}</option>
+              <>
+                <option value="expected_premium">
+                  {t('labor.opt.expectedPremium')}
+                </option>
+                <option value="wage_premium_fe">{t('labor.opt.wagePremiumFe')}</option>
+              </>
             )}
             <option value="unemp">{t('labor.opt.unemp')}</option>
           </select>
@@ -453,6 +541,10 @@ export default function MigrationVsLaborOutcome({
                       ? t('labor.tip.wageMedian')
                       : metric === 'wage_mean'
                       ? t('labor.tip.wageMean')
+                      : metric === 'expected_wage'
+                      ? t('labor.tip.expectedWage')
+                      : metric === 'expected_premium'
+                      ? t('labor.tip.expectedPremium')
                       : t('labor.tip.unemp')}
                     : {tooltipFmt(p, metric, t)}
                   </div>

@@ -5,37 +5,6 @@ import { useT, sectionLabel } from '../../i18n/ui';
 
 const STOPS = [-1, -0.66, -0.33, 0, 0.33, 0.66, 1];
 
-// Diverging "% of base workforce gained or lost" — capped at the bound the
-// IndustryTreemap uses for its color scale.
-export function DivergingPctLegend({
-  bound,
-  note,
-}: {
-  bound: number;
-  note: string;
-}) {
-  const t = useT();
-  return (
-    <div className="treemap-legend">
-      <div className="treemap-legend-bar">
-        {STOPS.map((stop) => (
-          <div
-            key={stop}
-            className="treemap-legend-stop"
-            style={{ background: divergingPctColor(stop * bound, bound) }}
-          />
-        ))}
-      </div>
-      <div className="treemap-legend-labels">
-        <span>≤ −{bound}% ({t('legend.lost')})</span>
-        <span>0%</span>
-        <span>≥ +{bound}% ({t('legend.gained')})</span>
-      </div>
-      <div className="treemap-legend-note">{note}</div>
-    </div>
-  );
-}
-
 // Diverging legend for "daily wage vs. some median." The reference label and
 // note vary by mode (industry-national vs. city-internal comparison); callers
 // pass translated strings, and unset props fall back to the default copy.

@@ -754,17 +754,23 @@ export const homeContent = {
       <>
         Each point is one city. The Y axis defaults to the 2014–2024 change in the
         unemployment rate (percentage points); use the dropdown to switch to wage
-        CAGR or composition-adjusted wage-premium growth. Dashed lines mark the
-        national norm on each axis.
+        CAGR, composition-adjusted wage-premium growth, or the expected wage —
+        (1 − unemployment) × wage, the numerator of the utility expression above,
+        which prices in the risk of not finding work. Dashed lines mark the
+        national norm on each axis; for the two premium measures that norm is 0 by
+        construction.
       </>
     ),
     fr: (
       <>
         Chaque point représente une ville. L'axe des ordonnées affiche par défaut
         la variation 2014–2024 du taux de chômage (en points de pourcentage) ;
-        utilisez le menu déroulant pour passer au TCAC des salaires ou à la
-        croissance de la prime salariale ajustée de la composition. Les lignes
-        pointillées marquent la norme nationale sur chaque axe.
+        utilisez le menu déroulant pour passer au TCAC des salaires, à la
+        croissance de la prime salariale ajustée de la composition, ou au salaire
+        espéré — (1 − chômage) × salaire, le numérateur de l'expression d'utilité
+        ci-dessus, qui intègre le risque de ne pas trouver d'emploi. Les lignes
+        pointillées marquent la norme nationale sur chaque axe ; pour les deux
+        mesures de prime, cette norme vaut 0 par construction.
       </>
     ),
   },
@@ -1139,18 +1145,23 @@ export const cityContent = {
       <>
         Each point is one city. {name} is highlighted in red. The Y axis toggle
         switches between median and mean wage growth (CAGR of CNSS daily wage),
-        composition-adjusted wage-premium growth, and the 2014–2024 change in the
-        unemployment rate. Dashed lines mark the national norm on each axis.
+        the expected wage — (1 − unemployment) × wage, which prices in the risk of
+        not finding work — composition-adjusted wage-premium growth, and the
+        2014–2024 change in the unemployment rate. Dashed lines mark the national
+        norm on each axis; for the two premium measures that norm is 0 by
+        construction.
       </>
     ),
     fr: (name: string) => (
       <>
         Chaque point représente une ville. {name} est mise en évidence en rouge.
         Le sélecteur de l'axe des ordonnées bascule entre la croissance du salaire
-        médian et moyen (TCAC du salaire journalier CNSS), la croissance de la
-        prime salariale ajustée de la composition, et la variation 2014–2024 du
-        taux de chômage. Les lignes pointillées marquent la norme nationale sur
-        chaque axe.
+        médian et moyen (TCAC du salaire journalier CNSS), le salaire espéré —
+        (1 − chômage) × salaire, qui intègre le risque de ne pas trouver d'emploi
+        —, la croissance de la prime salariale ajustée de la composition, et la
+        variation 2014–2024 du taux de chômage. Les lignes pointillées marquent la
+        norme nationale sur chaque axe ; pour les deux mesures de prime, cette
+        norme vaut 0 par construction.
       </>
     ),
   },
@@ -1217,44 +1228,50 @@ export const cityContent = {
   waterfallToTreemapP: {
     en: (_name: string) => (
       <>
-        The waterfall summarises the change at the aggregate level; the treemap
-        below opens it up by industry. Each rectangle is one CNSS industry as it
-        stood in 2014, and the colour toggle reveals which industries account for
-        the local-share or industry-mix gains and losses. This is the most
+        The waterfall summarises the change at the aggregate level; the chart
+        below opens it up by industry. Each row is one CNSS industry that already
+        existed in the city in 2014: the bar is the change in workers actually
+        observed, and the dot is the change national trends alone would have
+        produced. Where the two diverge is the local-share effect — the part of
+        the industry's trajectory specific to this city. This is the most
         concrete view of what is growing or shrinking on the demand side.
       </>
     ),
     fr: (_name: string) => (
       <>
-        Le graphique en cascade résume la variation au niveau agrégé ; le treemap
-        ci-dessous la détaille par secteur. Chaque rectangle correspond à un
-        secteur CNSS tel qu'il se présentait en 2014, et le sélecteur de couleur
-        révèle quels secteurs expliquent les gains et les pertes de part locale ou
-        de composition sectorielle. C'est la vue la plus concrète de ce qui croît
-        ou se contracte du côté de la demande.
+        Le graphique en cascade résume la variation au niveau agrégé ; le
+        graphique ci-dessous la détaille par secteur. Chaque ligne correspond à un
+        secteur CNSS déjà présent dans la ville en 2014 : la barre indique la
+        variation d'effectifs réellement observée, et le point la variation
+        qu'auraient produite les seules tendances nationales. L'écart entre les
+        deux constitue l'effet de part locale — la part de la trajectoire du
+        secteur propre à cette ville. C'est la vue la plus concrète de ce qui
+        croît ou se contracte du côté de la demande.
       </>
     ),
   },
   mixTitle: {
-    en: (_name: string) => <>Industry mix in 2014, by section</>,
-    fr: (_name: string) => <>Composition sectorielle en 2014, par section</>,
+    en: (_name: string) => <>Biggest industry movers, observed vs. expected</>,
+    fr: (_name: string) => (
+      <>Principaux mouvements sectoriels, observé vs attendu</>
+    ),
   },
   mixCaption: {
     en: (_name: string) => (
       <>
-        Each rectangle is one CNSS industry, sized by 2014 workers and grouped by
-        NACE section. Toggle the color to see which industries gained or lost the
-        largest share of their 2014 workforce via the local-share or industry-mix
-        component (capped at ±100%). Hover for the per-industry detail.
+        Industries with formal employment in 2014, ranked either by the size of
+        their 2014–2024 employment change or by how far that change ran from what
+        national trends implied. The bar is the observed change; the dot is the
+        expected change. Hover for the per-industry detail.
       </>
     ),
     fr: (_name: string) => (
       <>
-        Chaque rectangle correspond à un secteur CNSS, dimensionné selon les
-        effectifs de 2014 et regroupé par section NACE. Changez la couleur pour
-        voir quels secteurs ont gagné ou perdu la plus grande part de leurs
-        effectifs de 2014 via la composante de part locale ou de composition
-        sectorielle (plafonnée à ±100 %). Survolez pour le détail par secteur.
+        Secteurs disposant d'emploi formel en 2014, classés soit selon l'ampleur
+        de leur variation d'effectifs entre 2014 et 2024, soit selon l'écart entre
+        cette variation et celle qu'impliquaient les tendances nationales. La
+        barre indique la variation observée ; le point, la variation attendue.
+        Survolez pour le détail par secteur.
       </>
     ),
   },
@@ -1293,18 +1310,20 @@ export const cityContent = {
     en: (_name: string) => (
       <>
         Industries with zero CNSS workers in 2014 that show up by 2024. Toggle the
-        color to view by NACE section, by daily wage relative to the industry's
-        national median, or by daily wage relative to the city's median. These
-        contribute entirely to the entry-effect bar in the waterfall above.
+        color to view by NACE section, by industry complexity, by daily wage
+        relative to the industry's national median, or by daily wage relative to
+        the city's median. These contribute entirely to the entry-effect bar in
+        the waterfall above.
       </>
     ),
     fr: (_name: string) => (
       <>
         Secteurs comptant zéro travailleur CNSS en 2014 et présents en 2024.
-        Changez la couleur pour afficher par section NACE, par salaire journalier
-        relatif à la médiane nationale du secteur, ou par salaire journalier
-        relatif à la médiane de la ville. Ces secteurs contribuent entièrement à la
-        barre d'effet d'entrée du graphique en cascade ci-dessus.
+        Changez la couleur pour afficher par section NACE, par complexité
+        sectorielle, par salaire journalier relatif à la médiane nationale du
+        secteur, ou par salaire journalier relatif à la médiane de la ville. Ces
+        secteurs contribuent entièrement à la barre d'effet d'entrée du graphique
+        en cascade ci-dessus.
       </>
     ),
   },

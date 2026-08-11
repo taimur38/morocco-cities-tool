@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import type { CityIndustryShiftShareRow } from '../../data/types';
+import type {
+  CityIndustryShiftShareRow,
+  IndustryComplexityRow,
+} from '../../data/types';
 import { fmtInt, fmtNum } from '../../lib/format';
 import { sectionColor } from '../../lib/sectionPalette';
-import { divergingPctColor } from '../../lib/colorScales';
-import { SectionLegend, WageLegend } from './treemapLegends';
+import { complexityColor, divergingPctColor } from '../../lib/colorScales';
+import { ComplexityLegend, SectionLegend, WageLegend } from './treemapLegends';
 import {
   SectionLabelsOverlay,
   useSectionBoxes,
@@ -13,7 +16,7 @@ import {
 import { useLang } from '../../i18n/context';
 import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
-type Mode = 'section' | 'wage_industry' | 'wage_city';
+type Mode = 'section' | 'complexity' | 'wage_industry' | 'wage_city';
 
 // Same diverging bound as SectionOverviewTreemap for visual consistency.
 const WAGE_DEV_BOUND = 50;
@@ -23,6 +26,7 @@ type Leaf = {
   size: number;
   workers_2024: number;
   section: string;
+  pci: number | null;
   daily_wage_2024: number | null;
   industry_median_wage: number | null;
   wage_dev_industry_pct: number | null;
@@ -32,6 +36,7 @@ type Group = { name: string; children: Leaf[] };
 
 type Props = {
   rows: CityIndustryShiftShareRow[];
+  complexity?: IndustryComplexityRow[] | null;
   cityId: number;
   cityMedianWage?: number | null;
   translations?: Map<string, string> | null;
@@ -43,6 +48,7 @@ type Props = {
 // the per-industry detail.
 export default function NewIndustriesTreemap({
   rows,
+  complexity = null,
   cityId,
   cityMedianWage = null,
   translations,
@@ -51,6 +57,21 @@ export default function NewIndustriesTreemap({
   const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('section');
   const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
+
+  // Pinned to 2024 and scaled by the national max |PCI|, matching
+  // SectionOverviewTreemap so the two treemaps share one complexity ramp.
+  const { pciByCode, pciScale } = useMemo(() => {
+    if (!complexity) return { pciByCode: new Map<string, number>(), pciScale: 0 };
+    const m = new Map<string, number>();
+    let scale = 0;
+    for (const r of complexity) {
+      if (r.year === 2024 && r.pci_workers != null) {
+        m.set(r.CODE_ACTIVITE_NMA2010, r.pci_workers);
+        scale = Math.max(scale, Math.abs(r.pci_workers));
+      }
+    }
+    return { pciByCode: m, pciScale: scale };
+  }, [complexity]);
 
   // Industry national median daily wage (same convention as SectionOverviewTreemap):
   // unweighted median across cities where the industry appears.
@@ -104,6 +125,7 @@ export default function NewIndustriesTreemap({
         size: c.workers_2024,
         workers_2024: c.workers_2024,
         section: c.section,
+        pci: pciByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null,
         daily_wage_2024: wage,
         industry_median_wage: med,
         wage_dev_industry_pct,
@@ -119,7 +141,7 @@ export default function NewIndustriesTreemap({
       .sort((a, b) => sumSize(b.children) - sumSize(a.children));
 
     return { data, total, count: cells.length, sectionsPresent: data.map((g) => g.name) };
-  }, [rows, cityId, translations, lang, wageMedianByCode, cityMedianWage]);
+  }, [rows, cityId, translations, lang, pciByCode, wageMedianByCode, cityMedianWage]);
 
   if (data.length === 0) {
     return <p className="muted">{t('tm.empty.new')}</p>;
@@ -136,6 +158,7 @@ export default function NewIndustriesTreemap({
             onChange={(e) => setMode(e.target.value as Mode)}
           >
             <option value="section">{t('tm.opt.section')}</option>
+            <option value="complexity">{t('tm.opt.complexity')}</option>
             <option value="wage_industry">{t('tm.opt.wageIndustry')}</option>
             <option value="wage_city">{t('tm.opt.wageCity')}</option>
           </select>
@@ -152,7 +175,7 @@ export default function NewIndustriesTreemap({
             stroke="#fff"
             aspectRatio={4 / 3}
             isAnimationActive={false}
-            content={<Cell mode={mode} recordBox={recordBox} />}
+            content={<Cell mode={mode} pciScale={pciScale} recordBox={recordBox} />}
           >
             <Tooltip content={<LeafTooltip />} wrapperStyle={{ zIndex: 10 }} />
           </Treemap>
@@ -160,6 +183,7 @@ export default function NewIndustriesTreemap({
         <SectionLabelsOverlay boxes={sectionBoxes} />
       </div>
       {mode === 'section' && <SectionLegend sections={sectionsPresent} />}
+      {mode === 'complexity' && <ComplexityLegend scale={pciScale} />}
       {mode === 'wage_industry' && <WageLegend bound={WAGE_DEV_BOUND} />}
       {mode === 'wage_city' && (
         <WageLegend
@@ -187,6 +211,7 @@ type CellProps = {
   name?: string;
   workers_2024?: number;
   section?: string;
+  pci?: number | null;
   daily_wage_2024?: number | null;
   industry_median_wage?: number | null;
   wage_dev_industry_pct?: number | null;
@@ -194,8 +219,18 @@ type CellProps = {
   recordBox?: RecordBox;
 };
 
-function Cell(props: CellProps & { mode: Mode }) {
-  const { x = 0, y = 0, width = 0, height = 0, depth = 0, name = '', mode, recordBox } = props;
+function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
+  const {
+    x = 0,
+    y = 0,
+    width = 0,
+    height = 0,
+    depth = 0,
+    name = '',
+    mode,
+    pciScale,
+    recordBox,
+  } = props;
 
   useEffect(() => {
     if (depth === 1 && name && recordBox && width > 0 && height > 0) {
@@ -225,6 +260,8 @@ function Cell(props: CellProps & { mode: Mode }) {
     let fill: string;
     if (mode === 'section') {
       fill = sectionColor(props.section);
+    } else if (mode === 'complexity') {
+      fill = complexityColor(props.pci ?? null, pciScale);
     } else {
       const dev =
         mode === 'wage_industry' ? props.wage_dev_industry_pct : props.wage_dev_city_pct;
@@ -254,6 +291,7 @@ type TipPayload = {
   payload?: {
     name?: string;
     section?: string;
+    pci?: number | null;
     workers_2024?: number;
     daily_wage_2024?: number | null;
     wage_dev_industry_pct?: number | null;
@@ -283,6 +321,8 @@ function LeafTooltip({ active, payload }: TipProps) {
         <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
         <dt>{t('tip.workers2014')}</dt>
         <dd>{t('tip.newEntrant0')}</dd>
+        <dt>{t('tip.pci')}</dt>
+        <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
         <dt>{t('tip.dailyWage2024')}</dt>
         <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
         <dt>{t('tip.vsIndustryNat')}</dt>
