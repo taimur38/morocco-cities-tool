@@ -324,6 +324,28 @@ strong { font-weight: 600; }
   cursor: not-allowed;
 }
 
+/* ── Morph treemap ───────────────────────────────────────────────────── */
+/* The chart measures its own container rather than taking a fixed viewBox, so
+ * the frame is what decides its height and the component fills it. The frame
+ * is also the positioning context for the hover card. */
+.morph-frame {
+  position: relative;
+  width: 100%;
+  height: 520px;
+}
+/* The new-industries chart is a subset of the composition one and needs less
+ * room; its ranked view is capped lower to match. */
+.morph-frame--short { height: 440px; }
+.morph-chart {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+/* The toolbar's controls sit on one line until the view switch no longer fits
+ * beside the colour select, at which point they wrap rather than compressing
+ * the segmented buttons into unreadable slivers. */
+.chart-toolbar { flex-wrap: wrap; }
+
 /* ── Treemap legend ──────────────────────────────────────────────────── */
 .treemap-legend {
   margin: 0.6rem 0 0;

@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import { useCallback, useMemo, useState } from 'react';
 import type {
   CityIndustryShiftShareRow,
   IndustryComplexityRow,
@@ -7,12 +6,10 @@ import type {
 import { fmtInt, fmtNum } from '../../lib/format';
 import { sectionColor } from '../../lib/sectionPalette';
 import { complexityColor, divergingPctColor } from '../../lib/colorScales';
+import { mix } from '../../lib/chartText';
 import { ComplexityLegend, SectionLegend, WageLegend } from './treemapLegends';
-import {
-  SectionLabelsOverlay,
-  useSectionBoxes,
-  type RecordBox,
-} from './sectionLabels';
+import MorphTreemap, { MorphViewSwitch } from './MorphTreemap';
+import type { MorphMetric, MorphNode, MorphView } from './morphLayout';
 import { useLang } from '../../i18n/context';
 import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
@@ -21,9 +18,15 @@ type Mode = 'section' | 'complexity' | 'wage_industry' | 'wage_city';
 // Same diverging bound as SectionOverviewTreemap for visual consistency.
 const WAGE_DEV_BOUND = 50;
 
+// Fewer rows than the composition chart: this one is a shorter frame, and the
+// set of new industries is small enough that ten is often most of it.
+const RANK_TOP_N = 12;
+
+const NO_VALUE = '#f6f6f4';
+
 type Leaf = {
+  code: string;
   name: string;
-  size: number;
   workers_2024: number;
   section: string;
   pci: number | null;
@@ -31,8 +34,8 @@ type Leaf = {
   industry_median_wage: number | null;
   wage_dev_industry_pct: number | null;
   wage_dev_city_pct: number | null;
+  share: number;
 };
-type Group = { name: string; children: Leaf[] };
 
 type Props = {
   rows: CityIndustryShiftShareRow[];
@@ -42,10 +45,14 @@ type Props = {
   translations?: Map<string, string> | null;
 };
 
-// Treemap of industries that didn't exist in this city in 2014 but do in 2024.
-// Sized by 2024 workers, grouped by NACE section, colored by that section so
-// the eye picks up where new activity is concentrated at a glance. Hover for
-// the per-industry detail.
+const signedPct = (v: number, digits = 1) =>
+  `${v >= 0 ? '+' : ''}${fmtNum(v, digits)}%`;
+
+// Industries that had no CNSS employment in this city in 2014 and do in 2024,
+// sized by 2024 workers and grouped by NACE section. Same four readings as the
+// composition chart: the treemap shows where new activity concentrated, the
+// ranking and the distribution put the colour metric on an axis, and the
+// scatter separates how large a new industry is from how well it pays.
 export default function NewIndustriesTreemap({
   rows,
   complexity = null,
@@ -56,10 +63,11 @@ export default function NewIndustriesTreemap({
   const t = useT();
   const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('section');
-  const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
+  const [view, setView] = useState<MorphView>('treemap');
+  const [omitted, setOmitted] = useState(0);
 
   // Pinned to 2024 and scaled by the national max |PCI|, matching
-  // SectionOverviewTreemap so the two treemaps share one complexity ramp.
+  // SectionOverviewTreemap so the two charts share one complexity ramp.
   const { pciByCode, pciScale } = useMemo(() => {
     if (!complexity) return { pciByCode: new Map<string, number>(), pciScale: 0 };
     const m = new Map<string, number>();
@@ -94,19 +102,18 @@ export default function NewIndustriesTreemap({
     return out;
   }, [rows]);
 
-  const { data, total, count, sectionsPresent } = useMemo(() => {
+  const { nodes, total, count, sectionsPresent } = useMemo(() => {
     const cells = rows.filter(
-      (r) =>
-        r.city_id === cityId && r.workers_2014 === 0 && r.workers_2024 > 0,
+      (r) => r.city_id === cityId && r.workers_2014 === 0 && r.workers_2024 > 0,
     );
     if (cells.length === 0) {
-      return { data: [] as Group[], total: 0, count: 0, sectionsPresent: [] as string[] };
+      return { nodes: [] as MorphNode<Leaf>[], total: 0, count: 0, sectionsPresent: [] as string[] };
     }
 
-    const bySection = new Map<string, Leaf[]>();
     let total = 0;
-    for (const c of cells) {
-      total += c.workers_2024;
+    for (const c of cells) total += c.workers_2024;
+
+    const nodes: MorphNode<Leaf>[] = cells.map((c) => {
       const label = industryLabel(c.LIBELLE_ACTIVITE, translations, lang);
       const wage =
         c.daily_wage_2024 != null && Number.isFinite(c.daily_wage_2024)
@@ -119,10 +126,10 @@ export default function NewIndustriesTreemap({
         wage != null && cityMedianWage != null && cityMedianWage > 0
           ? ((wage - cityMedianWage) / cityMedianWage) * 100
           : null;
-      const arr = bySection.get(c.section) ?? [];
-      arr.push({
+
+      const datum: Leaf = {
+        code: c.CODE_ACTIVITE_NMA2010,
         name: label,
-        size: c.workers_2024,
         workers_2024: c.workers_2024,
         section: c.section,
         pci: pciByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null,
@@ -130,20 +137,108 @@ export default function NewIndustriesTreemap({
         industry_median_wage: med,
         wage_dev_industry_pct,
         wage_dev_city_pct,
-      });
-      bySection.set(c.section, arr);
-    }
-    const data: Group[] = [...bySection.entries()]
-      .map(([name, children]) => ({
-        name,
-        children: children.sort((a, b) => b.size - a.size),
-      }))
-      .sort((a, b) => sumSize(b.children) - sumSize(a.children));
+        share: total > 0 ? c.workers_2024 / total : 0,
+      };
 
-    return { data, total, count: cells.length, sectionsPresent: data.map((g) => g.name) };
+      return {
+        key: c.CODE_ACTIVITE_NMA2010,
+        name: label,
+        value: c.workers_2024,
+        groupKey: c.section,
+        groupName: sectionLabel(c.section, lang),
+        groupColor: sectionColor(c.section),
+        datum,
+      };
+    });
+
+    const totals = new Map<string, number>();
+    for (const n of nodes) {
+      totals.set(n.groupKey, (totals.get(n.groupKey) ?? 0) + n.value);
+    }
+    const sectionsPresent = [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([s]) => s);
+
+    return { nodes, total, count: cells.length, sectionsPresent };
   }, [rows, cityId, translations, lang, pciByCode, wageMedianByCode, cityMedianWage]);
 
-  if (data.length === 0) {
+  const fillOf = useCallback(
+    (n: MorphNode<Leaf>) => {
+      const d = n.datum;
+      switch (mode) {
+        case 'section':
+          return mix(sectionColor(d.section), '#ffffff', 0.45);
+        case 'complexity':
+          return complexityColor(d.pci, pciScale);
+        case 'wage_industry':
+          return d.wage_dev_industry_pct == null
+            ? NO_VALUE
+            : divergingPctColor(d.wage_dev_industry_pct, WAGE_DEV_BOUND);
+        case 'wage_city':
+          return d.wage_dev_city_pct == null
+            ? NO_VALUE
+            : divergingPctColor(d.wage_dev_city_pct, WAGE_DEV_BOUND);
+      }
+    },
+    [mode, pciScale],
+  );
+
+  const metric = useMemo<MorphMetric<Leaf>>(() => {
+    switch (mode) {
+      case 'complexity':
+        return {
+          key: 'pci',
+          label: t('tip.pci'),
+          of: (n) => n.datum.pci,
+          format: (v) => fmtNum(v, 2),
+          baseline: 0,
+          baselineLabel: t('tm.ref.nationalAvg'),
+        };
+      case 'wage_industry':
+        return {
+          key: 'wage_industry',
+          label: t('tm.axis.wageIndustry'),
+          of: (n) => n.datum.wage_dev_industry_pct,
+          format: (v) => signedPct(v, 0),
+          baseline: 0,
+          baselineLabel: t('tm.ref.industryMedian'),
+        };
+      case 'wage_city':
+        return {
+          key: 'wage_city',
+          label: t('tm.axis.wageCity'),
+          of: (n) => n.datum.wage_dev_city_pct,
+          format: (v) => signedPct(v, 0),
+          baseline: 0,
+          baselineLabel: t('tm.ref.cityMedian'),
+        };
+      case 'section':
+      default:
+        return {
+          key: 'workers',
+          label: t('tm.axis.workers'),
+          of: (n) => n.value,
+          format: (v) => fmtInt.format(Math.round(v)),
+          log: true,
+          isSize: true,
+        };
+    }
+  }, [mode, t]);
+
+  const views = useMemo(
+    () => [
+      { value: 'treemap' as MorphView, label: t('tm.view.treemap') },
+      { value: 'bars' as MorphView, label: t('tm.view.ranked') },
+      { value: 'beeswarm' as MorphView, label: t('tm.view.distribution') },
+      {
+        value: 'scatter' as MorphView,
+        label: metric.isSize ? t('tm.view.bySection') : t('tm.view.vsSize'),
+      },
+    ],
+    [t, metric.isSize],
+  );
+
+  if (nodes.length === 0) {
     return <p className="muted">{t('tm.empty.new')}</p>;
   }
 
@@ -163,25 +258,37 @@ export default function NewIndustriesTreemap({
             <option value="wage_city">{t('tm.opt.wageCity')}</option>
           </select>
         </label>
+        <MorphViewSwitch
+          value={view}
+          onChange={setView}
+          views={views}
+          label={t('tm.view')}
+        />
         <span className="chart-toolbar-hint">
           {t('tm.new.hint', { count, n: fmtInt.format(total) })}
         </span>
       </div>
-      <div style={{ position: 'relative' }}>
-        <ResponsiveContainer width="100%" height={440}>
-          <Treemap
-            data={data}
-            dataKey="size"
-            stroke="#fff"
-            aspectRatio={4 / 3}
-            isAnimationActive={false}
-            content={<Cell mode={mode} pciScale={pciScale} recordBox={recordBox} />}
-          >
-            <Tooltip content={<LeafTooltip />} wrapperStyle={{ zIndex: 10 }} />
-          </Treemap>
-        </ResponsiveContainer>
-        <SectionLabelsOverlay boxes={sectionBoxes} />
+      <div className="morph-frame morph-frame--short">
+        <MorphTreemap<Leaf>
+          nodes={nodes}
+          view={view}
+          metric={metric}
+          fillOf={fillOf}
+          leafLabels
+          leafSub={(n) => (n.datum.share >= 0.03 ? `${(n.datum.share * 100).toFixed(0)}%` : undefined)}
+          topN={RANK_TOP_N}
+          sizeLabel={t('tm.axis.workersShort')}
+          onOmitted={setOmitted}
+          renderTooltip={(n) => <LeafTooltip d={n.datum} />}
+        />
       </div>
+      {omitted > 0 && (
+        <p className="chart-toolbar-hint muted">
+          {view === 'bars'
+            ? t('tm.topOf', { shown: nodes.length - omitted, total: nodes.length })
+            : t('tm.omitted', { n: omitted })}
+        </p>
+      )}
       {mode === 'section' && <SectionLegend sections={sectionsPresent} />}
       {mode === 'complexity' && <ComplexityLegend scale={pciScale} />}
       {mode === 'wage_industry' && <WageLegend bound={WAGE_DEV_BOUND} />}
@@ -196,140 +303,32 @@ export default function NewIndustriesTreemap({
   );
 }
 
-function sumSize(arr: Leaf[]): number {
-  return arr.reduce((s, x) => s + x.size, 0);
-}
-
-// Recharts injects the layout fields (x/y/width/height/depth/name) onto this
-// element via cloneElement — they're optional from the call-site's view.
-type CellProps = {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  depth?: number;
-  name?: string;
-  workers_2024?: number;
-  section?: string;
-  pci?: number | null;
-  daily_wage_2024?: number | null;
-  industry_median_wage?: number | null;
-  wage_dev_industry_pct?: number | null;
-  wage_dev_city_pct?: number | null;
-  recordBox?: RecordBox;
-};
-
-function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
-  const {
-    x = 0,
-    y = 0,
-    width = 0,
-    height = 0,
-    depth = 0,
-    name = '',
-    mode,
-    pciScale,
-    recordBox,
-  } = props;
-
-  useEffect(() => {
-    if (depth === 1 && name && recordBox && width > 0 && height > 0) {
-      recordBox(name, { x, y, w: width, h: height });
-    }
-  }, [depth, name, x, y, width, height, recordBox]);
-
-  if (width <= 0 || height <= 0) return null;
-
-  if (depth === 1) {
-    return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill="none"
-          stroke="#fff"
-          strokeWidth={6}
-        />
-      </g>
-    );
-  }
-
-  if (depth === 2) {
-    let fill: string;
-    if (mode === 'section') {
-      fill = sectionColor(props.section);
-    } else if (mode === 'complexity') {
-      fill = complexityColor(props.pci ?? null, pciScale);
-    } else {
-      const dev =
-        mode === 'wage_industry' ? props.wage_dev_industry_pct : props.wage_dev_city_pct;
-      fill = dev == null ? '#f6f6f4' : divergingPctColor(dev, WAGE_DEV_BOUND);
-    }
-    const fillOpacity = mode === 'section' ? 0.55 : 1;
-    return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill={fill}
-          fillOpacity={fillOpacity}
-          stroke="#fff"
-          strokeWidth={1}
-        />
-      </g>
-    );
-  }
-
-  return null;
-}
-
-type TipPayload = {
-  payload?: {
-    name?: string;
-    section?: string;
-    pci?: number | null;
-    workers_2024?: number;
-    daily_wage_2024?: number | null;
-    wage_dev_industry_pct?: number | null;
-    wage_dev_city_pct?: number | null;
-    children?: unknown[];
-  };
-};
-type TipProps = { active?: boolean; payload?: TipPayload[] };
-
 function fmtSignedPct(v: number | null | undefined): string {
   if (v == null) return '—';
-  return `${v >= 0 ? '+' : ''}${fmtNum(v, 1)}%`;
+  return signedPct(v);
 }
 
-function LeafTooltip({ active, payload }: TipProps) {
+function LeafTooltip({ d }: { d: Leaf }) {
   const t = useT();
   const { lang } = useLang();
-  if (!active || !payload || payload.length === 0) return null;
-  const p = payload[0]?.payload;
-  if (!p || p.children) return null;
   return (
-    <div className="treemap-tooltip">
-      <div className="treemap-tooltip-name">{p.name}</div>
-      <div className="treemap-tooltip-section">{sectionLabel(p.section, lang)}</div>
+    <>
+      <div className="treemap-tooltip-name">{d.name}</div>
+      <div className="treemap-tooltip-section">{sectionLabel(d.section, lang)}</div>
       <dl className="treemap-tooltip-grid">
         <dt>{t('tip.workers2024')}</dt>
-        <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
+        <dd>{fmtInt.format(d.workers_2024)}</dd>
         <dt>{t('tip.workers2014')}</dt>
         <dd>{t('tip.newEntrant0')}</dd>
         <dt>{t('tip.pci')}</dt>
-        <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
+        <dd>{d.pci == null ? '—' : fmtNum(d.pci, 2)}</dd>
         <dt>{t('tip.dailyWage2024')}</dt>
-        <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
+        <dd>{d.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(d.daily_wage_2024))}</dd>
         <dt>{t('tip.vsIndustryNat')}</dt>
-        <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
+        <dd>{fmtSignedPct(d.wage_dev_industry_pct)}</dd>
         <dt>{t('tip.vsCityMedian')}</dt>
-        <dd>{fmtSignedPct(p.wage_dev_city_pct)}</dd>
+        <dd>{fmtSignedPct(d.wage_dev_city_pct)}</dd>
       </dl>
-    </div>
+    </>
   );
 }

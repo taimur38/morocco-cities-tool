@@ -20,6 +20,10 @@ and never writes back into it.
 - [hyparquet](https://github.com/hyparam/hyparquet) — pure-JS parquet reader, so
   the static build fetches `*.parquet` directly from `/data/` with no backend.
 - Recharts for charts; d3-geo for the commune maps.
+- d3-hierarchy + d3-force behind `MorphTreemap`, the composition chart that
+  re-reads one set of marks as a treemap, a ranking, a distribution or a
+  scatter. Shared in form with the Growth Lab cities tool and the Africa
+  trade atlas; see the header of `src/components/charts/morphLayout.ts`.
 
 No backend. Everything is served as static files.
 

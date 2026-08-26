@@ -493,6 +493,54 @@ export const UI: Record<string, Entry> = {
     fr: '{count} nouvelles industries · {n} travailleurs en 2024',
   },
 
+  // --- Treemap views (the morph switch) -------------------------------------
+  // The same marks, read four ways. Labels name the reading rather than the
+  // chart type where the two differ: "Ranked" says what the reader gets, where
+  // "Bar chart" would only say what it looks like.
+  'tm.view': { en: 'View', fr: 'Vue' },
+  'tm.view.treemap': { en: 'Treemap', fr: 'Treemap' },
+  'tm.view.ranked': { en: 'Ranked', fr: 'Classement' },
+  'tm.view.distribution': { en: 'Distribution', fr: 'Répartition' },
+  'tm.view.vsSize': { en: 'vs. size', fr: 'selon la taille' },
+  'tm.view.bySection': { en: 'By section', fr: 'Par section' },
+  // Two ways of saying the same thing. A ranking drops the tail on purpose, so
+  // it says how much it is showing; the other views drop whatever they cannot
+  // place — an industry with no wage, no complexity score — so they say how
+  // much is missing.
+  'tm.topOf': {
+    en: 'Top {shown} of {total} industries.',
+    fr: 'Les {shown} premiers sur {total} secteurs.',
+  },
+  'tm.omitted': {
+    en: '{n} industries are not shown in this view.',
+    fr: '{n} secteurs ne sont pas affichés dans cette vue.',
+  },
+
+  // Axis captions. These name the quantity a positional view puts on its rule,
+  // which is a longer statement than the "Color by" option needs — the option
+  // labels a choice, the axis labels a number.
+  'tm.axis.workers': { en: 'Workers (2024)', fr: 'Effectifs (2024)' },
+  'tm.axis.workersShort': { en: 'Workers', fr: 'Effectifs' },
+  'tm.axis.wageIndustry': {
+    en: 'Daily wage vs. the national industry median (%)',
+    fr: 'Salaire journalier vs médiane nationale du secteur (%)',
+  },
+  'tm.axis.wageCity': {
+    en: 'Daily wage vs. the city median (%)',
+    fr: 'Salaire journalier vs médiane de la ville (%)',
+  },
+  'tm.axis.wageGrowth': {
+    en: 'Wage growth, 2014–2024 (% / yr)',
+    fr: 'Croissance salariale, 2014–2024 (% / an)',
+  },
+  'tm.ref.nationalAvg': { en: 'national average', fr: 'moyenne nationale' },
+  'tm.ref.industryMedian': {
+    en: 'national industry median',
+    fr: 'médiane nationale du secteur',
+  },
+  'tm.ref.cityMedian': { en: 'city median', fr: 'médiane de la ville' },
+  'tm.ref.noChange': { en: 'no change', fr: 'stable' },
+
   // --- Industry movers bar chart -------------------------------------------
   'mv.rankBy': { en: 'Rank by', fr: 'Classer par' },
   'mv.topN': { en: 'Show top', fr: 'Afficher les' },

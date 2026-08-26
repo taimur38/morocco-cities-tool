@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import { useCallback, useMemo, useState } from 'react';
 import type {
   CityIndustryShiftShareRow,
   IndustryComplexityRow,
@@ -7,12 +6,10 @@ import type {
 import { fmtInt, fmtNum } from '../../lib/format';
 import { sectionColor } from '../../lib/sectionPalette';
 import { complexityColor, divergingPctColor } from '../../lib/colorScales';
+import { mix } from '../../lib/chartText';
 import { ComplexityLegend, SectionLegend, WageLegend } from './treemapLegends';
-import {
-  SectionLabelsOverlay,
-  useSectionBoxes,
-  type RecordBox,
-} from './sectionLabels';
+import MorphTreemap, { MorphViewSwitch } from './MorphTreemap';
+import type { MorphMetric, MorphNode, MorphView } from './morphLayout';
 import { useLang } from '../../i18n/context';
 import { useT, sectionLabel, industryLabel } from '../../i18n/ui';
 
@@ -32,9 +29,17 @@ const WAGE_DEV_BOUND = 50;
 // well inside a ±15% range, with the long tail driven by small denominators.
 const WAGE_CAGR_BOUND = 15;
 
+// Rows past this in the ranked view collapse and fade. Fourteen is what fits
+// the 520px frame at a bar height the eye can still compare.
+const RANK_TOP_N = 14;
+
+// The colour of an unmeasured cell — an industry with no wage or no complexity
+// score. --bg-alt, so it reads as "no answer" rather than as a low value.
+const NO_VALUE = '#f6f6f4';
+
 type Leaf = {
+  code: string;
   name: string;
-  size: number;
   section: string;
   pci: number | null;
   workers_2024: number;
@@ -44,8 +49,8 @@ type Leaf = {
   wage_dev_industry_pct: number | null;
   wage_dev_city_pct: number | null;
   wage_cagr_pct: number | null;
+  share: number;
 };
-type Group = { name: string; children: Leaf[] };
 
 type Props = {
   rows: CityIndustryShiftShareRow[];
@@ -55,10 +60,23 @@ type Props = {
   translations?: Map<string, string> | null;
 };
 
-// Treemap of the city's 2024 industrial composition: rectangles sized by
-// workers_2024, grouped by NACE section. Color toggles between section
-// (categorical, GL Metroverse industry palette) and industry complexity
-// (sequential, Atlas complexity gradient). Hover for full per-industry detail.
+const signedPct = (v: number, digits = 1) =>
+  `${v >= 0 ? '+' : ''}${fmtNum(v, digits)}%`;
+
+// The city's 2024 industrial composition, sized by workers_2024 and grouped by
+// NACE section. "Color by" chooses what the cells say — the section itself, the
+// industry's complexity, or its wage against one of three references — and
+// "View" chooses how the same marks are arranged.
+//
+// The four views answer different questions off one set of rectangles. The
+// treemap is the composition: how much of the city each industry IS. The
+// ranking puts the colour metric on a length, which is the only form a reader
+// can compare precisely; a treemap can only put it in a hue. The distribution
+// keeps every industry and its size but drops the packing, so the reader sees
+// where the city sits on the metric as a whole rather than industry by
+// industry. And the scatter separates size from the metric, which is what
+// answers "large AND well paid" — the conjunction the treemap can only gesture
+// at by putting a colour on a big rectangle.
 export default function SectionOverviewTreemap({
   rows,
   complexity,
@@ -69,7 +87,8 @@ export default function SectionOverviewTreemap({
   const t = useT();
   const { lang } = useLang();
   const [mode, setMode] = useState<Mode>('section');
-  const { boxes: sectionBoxes, recordBox } = useSectionBoxes([cityId]);
+  const [view, setView] = useState<MorphView>('treemap');
+  const [omitted, setOmitted] = useState(0);
 
   const { pciByCode, pciScale } = useMemo(() => {
     if (!complexity) return { pciByCode: new Map<string, number>(), pciScale: 0 };
@@ -108,14 +127,16 @@ export default function SectionOverviewTreemap({
     return out;
   }, [rows]);
 
-  const { data, totalWorkers } = useMemo(() => {
+  const { nodes, totalWorkers, sectionsPresent } = useMemo(() => {
     const cells = rows.filter((r) => r.city_id === cityId && r.workers_2024 > 0);
-    if (cells.length === 0) return { data: [] as Group[], totalWorkers: 0 };
+    if (cells.length === 0) {
+      return { nodes: [] as MorphNode<Leaf>[], totalWorkers: 0, sectionsPresent: [] as string[] };
+    }
 
     let totalWorkers = 0;
-    const bySection = new Map<string, Leaf[]>();
-    for (const c of cells) {
-      totalWorkers += c.workers_2024;
+    for (const c of cells) totalWorkers += c.workers_2024;
+
+    const nodes: MorphNode<Leaf>[] = cells.map((c) => {
       const label = industryLabel(c.LIBELLE_ACTIVITE, translations, lang);
       const pci = pciByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
       const med = wageMedianByCode.get(c.CODE_ACTIVITE_NMA2010) ?? null;
@@ -134,16 +155,16 @@ export default function SectionOverviewTreemap({
           : null;
       // Per-industry wage growth = CAGR of the city-level mean daily wage
       // (sum_salary / sum_days) within this CNSS industry. Reported as %/yr;
-      // null when the industry was absent in 2014 (treemap is restricted to
+      // null when the industry was absent in 2014 (the chart is restricted to
       // workers_2024 > 0, but workers_2014 may be 0 — those are entry cells).
       const wage_cagr_pct =
         wage != null && wage14 != null && wage14 > 0
           ? (Math.pow(wage / wage14, 1 / 10) - 1) * 100
           : null;
-      const arr = bySection.get(c.section) ?? [];
-      arr.push({
+
+      const datum: Leaf = {
+        code: c.CODE_ACTIVITE_NMA2010,
         name: label,
-        size: c.workers_2024,
         section: c.section,
         pci,
         workers_2024: c.workers_2024,
@@ -153,21 +174,137 @@ export default function SectionOverviewTreemap({
         wage_dev_industry_pct,
         wage_dev_city_pct,
         wage_cagr_pct,
-      });
-      bySection.set(c.section, arr);
+        share: totalWorkers > 0 ? c.workers_2024 / totalWorkers : 0,
+      };
+
+      return {
+        // The CNSS code, not the label: the key is the identity a mark carries
+        // across a view change, and the label moves when the reader switches
+        // language, which would unmount every rectangle and remount it.
+        key: c.CODE_ACTIVITE_NMA2010,
+        name: label,
+        value: c.workers_2024,
+        groupKey: c.section,
+        groupName: sectionLabel(c.section, lang),
+        groupColor: sectionColor(c.section),
+        datum,
+      };
+    });
+
+    // Sections in descending order of employment, so the legend reads in the
+    // order the treemap lays them out.
+    const totals = new Map<string, number>();
+    for (const n of nodes) {
+      totals.set(n.groupKey, (totals.get(n.groupKey) ?? 0) + n.value);
     }
+    const sectionsPresent = [...totals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([s]) => s);
 
-    const data: Group[] = [...bySection.entries()]
-      .map(([name, children]) => ({
-        name,
-        children: children.sort((a, b) => b.size - a.size),
-      }))
-      .sort((a, b) => sumSize(b.children) - sumSize(a.children));
-
-    return { data, totalWorkers };
+    return { nodes, totalWorkers, sectionsPresent };
   }, [rows, cityId, translations, lang, pciByCode, wageMedianByCode, cityMedianWage]);
 
-  if (data.length === 0) {
+  // What a cell is painted. Section fills are mixed toward paper rather than
+  // drawn at reduced opacity: the label layer picks its ink by the luminance of
+  // the fill it sits on, and it can only do that if the fill it is handed is
+  // the colour actually on screen.
+  const fillOf = useCallback(
+    (n: MorphNode<Leaf>) => {
+      const d = n.datum;
+      switch (mode) {
+        case 'section':
+          return mix(sectionColor(d.section), '#ffffff', 0.45);
+        case 'complexity':
+          return complexityColor(d.pci, pciScale);
+        case 'wage_growth':
+          return d.wage_cagr_pct == null
+            ? NO_VALUE
+            : divergingPctColor(d.wage_cagr_pct, WAGE_CAGR_BOUND);
+        case 'wage_industry':
+          return d.wage_dev_industry_pct == null
+            ? NO_VALUE
+            : divergingPctColor(d.wage_dev_industry_pct, WAGE_DEV_BOUND);
+        case 'wage_city':
+          return d.wage_dev_city_pct == null
+            ? NO_VALUE
+            : divergingPctColor(d.wage_dev_city_pct, WAGE_DEV_BOUND);
+      }
+    },
+    [mode, pciScale],
+  );
+
+  // The metric is the colour mode read as a number. Keeping the two in step is
+  // deliberate: the reader picks what the cells say once, and every view then
+  // answers that same question in its own form.
+  const metric = useMemo<MorphMetric<Leaf>>(() => {
+    switch (mode) {
+      case 'complexity':
+        return {
+          key: 'pci',
+          label: t('tip.pci'),
+          of: (n) => n.datum.pci,
+          format: (v) => fmtNum(v, 2),
+          baseline: 0,
+          baselineLabel: t('tm.ref.nationalAvg'),
+        };
+      case 'wage_industry':
+        return {
+          key: 'wage_industry',
+          label: t('tm.axis.wageIndustry'),
+          of: (n) => n.datum.wage_dev_industry_pct,
+          format: (v) => signedPct(v, 0),
+          baseline: 0,
+          baselineLabel: t('tm.ref.industryMedian'),
+        };
+      case 'wage_city':
+        return {
+          key: 'wage_city',
+          label: t('tm.axis.wageCity'),
+          of: (n) => n.datum.wage_dev_city_pct,
+          format: (v) => signedPct(v, 0),
+          baseline: 0,
+          baselineLabel: t('tm.ref.cityMedian'),
+        };
+      case 'wage_growth':
+        return {
+          key: 'wage_growth',
+          label: t('tm.axis.wageGrowth'),
+          of: (n) => n.datum.wage_cagr_pct,
+          format: (v) => signedPct(v),
+          baseline: 0,
+          baselineLabel: t('tm.ref.noChange'),
+        };
+      case 'section':
+      default:
+        // Colouring by section says nothing numeric, so the positional views
+        // fall back to the area measure. `isSize` is what tells the scatter to
+        // become a strip plot by section rather than plot workers against
+        // workers and draw a diagonal.
+        return {
+          key: 'workers',
+          label: t('tm.axis.workers'),
+          of: (n) => n.value,
+          format: (v) => fmtInt.format(Math.round(v)),
+          log: true,
+          isSize: true,
+        };
+    }
+  }, [mode, t]);
+
+  const views = useMemo(
+    () => [
+      { value: 'treemap' as MorphView, label: t('tm.view.treemap') },
+      { value: 'bars' as MorphView, label: t('tm.view.ranked') },
+      { value: 'beeswarm' as MorphView, label: t('tm.view.distribution') },
+      {
+        value: 'scatter' as MorphView,
+        label: metric.isSize ? t('tm.view.bySection') : t('tm.view.vsSize'),
+      },
+    ],
+    [t, metric.isSize],
+  );
+
+  if (nodes.length === 0) {
     return <p className="muted">{t('tm.empty.composition')}</p>;
   }
 
@@ -188,26 +325,40 @@ export default function SectionOverviewTreemap({
             <option value="wage_growth">{t('tm.opt.wageGrowth')}</option>
           </select>
         </label>
-        <span className="chart-toolbar-hint">
-          {t('charts.sizedBy2024', { n: fmtInt.format(totalWorkers) })}
-        </span>
+        <MorphViewSwitch
+          value={view}
+          onChange={setView}
+          views={views}
+          label={t('tm.view')}
+        />
+        {view !== 'bars' && (
+          <span className="chart-toolbar-hint">
+            {t('charts.sizedBy2024', { n: fmtInt.format(totalWorkers) })}
+          </span>
+        )}
       </div>
-      <div style={{ position: 'relative' }}>
-        <ResponsiveContainer width="100%" height={520}>
-          <Treemap
-            data={data}
-            dataKey="size"
-            stroke="#fff"
-            aspectRatio={4 / 3}
-            isAnimationActive={false}
-            content={<Cell mode={mode} pciScale={pciScale} recordBox={recordBox} />}
-          >
-            <Tooltip content={<LeafTooltip />} wrapperStyle={{ zIndex: 10 }} />
-          </Treemap>
-        </ResponsiveContainer>
-        <SectionLabelsOverlay boxes={sectionBoxes} />
+      <div className="morph-frame">
+        <MorphTreemap<Leaf>
+          nodes={nodes}
+          view={view}
+          metric={metric}
+          fillOf={fillOf}
+          leafLabels
+          leafSub={(n) => (n.datum.share >= 0.02 ? `${(n.datum.share * 100).toFixed(0)}%` : undefined)}
+          topN={RANK_TOP_N}
+          sizeLabel={t('tm.axis.workersShort')}
+          onOmitted={setOmitted}
+          renderTooltip={(n) => <LeafTooltip d={n.datum} />}
+        />
       </div>
-      {mode === 'section' && <SectionLegend sections={data.map((g) => g.name)} />}
+      {omitted > 0 && (
+        <p className="chart-toolbar-hint muted">
+          {view === 'bars'
+            ? t('tm.topOf', { shown: nodes.length - omitted, total: nodes.length })
+            : t('tm.omitted', { n: omitted })}
+        </p>
+      )}
+      {mode === 'section' && <SectionLegend sections={sectionsPresent} />}
       {mode === 'complexity' && <ComplexityLegend scale={pciScale} />}
       {mode === 'wage_industry' && <WageLegend bound={WAGE_DEV_BOUND} />}
       {mode === 'wage_city' && (
@@ -231,150 +382,36 @@ export default function SectionOverviewTreemap({
   );
 }
 
-function sumSize(arr: Leaf[]): number {
-  return arr.reduce((s, x) => s + x.size, 0);
-}
-
-type CellProps = {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  depth?: number;
-  name?: string;
-  section?: string;
-  pci?: number | null;
-  workers_2024?: number;
-  daily_wage_2014?: number | null;
-  daily_wage_2024?: number | null;
-  industry_median_wage?: number | null;
-  wage_dev_industry_pct?: number | null;
-  wage_dev_city_pct?: number | null;
-  wage_cagr_pct?: number | null;
-  recordBox?: RecordBox;
-};
-
-function Cell(props: CellProps & { mode: Mode; pciScale: number }) {
-  const {
-    x = 0,
-    y = 0,
-    width = 0,
-    height = 0,
-    depth = 0,
-    name = '',
-    mode,
-    pciScale,
-    recordBox,
-  } = props;
-
-  useEffect(() => {
-    if (depth === 1 && name && recordBox && width > 0 && height > 0) {
-      recordBox(name, { x, y, w: width, h: height });
-    }
-  }, [depth, name, x, y, width, height, recordBox]);
-
-  if (width <= 0 || height <= 0) return null;
-
-  if (depth === 1) {
-    return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill="none"
-          stroke="#fff"
-          strokeWidth={6}
-        />
-      </g>
-    );
-  }
-
-  if (depth === 2) {
-    let fill: string;
-    if (mode === 'section') {
-      fill = sectionColor(props.section);
-    } else if (mode === 'complexity') {
-      fill = complexityColor(props.pci ?? null, pciScale);
-    } else if (mode === 'wage_growth') {
-      const v = props.wage_cagr_pct ?? null;
-      fill = v == null ? '#f6f6f4' : divergingPctColor(v, WAGE_CAGR_BOUND);
-    } else {
-      const dev =
-        mode === 'wage_industry' ? props.wage_dev_industry_pct : props.wage_dev_city_pct;
-      fill = dev == null ? '#f6f6f4' : divergingPctColor(dev, WAGE_DEV_BOUND);
-    }
-    const fillOpacity = mode === 'section' ? 0.55 : 1;
-    return (
-      <g>
-        <rect
-          x={x}
-          y={y}
-          width={width}
-          height={height}
-          fill={fill}
-          fillOpacity={fillOpacity}
-          stroke="#fff"
-          strokeWidth={1}
-        />
-      </g>
-    );
-  }
-
-  return null;
-}
-
-type TipPayload = {
-  payload?: {
-    name?: string;
-    section?: string;
-    pci?: number | null;
-    workers_2024?: number;
-    daily_wage_2014?: number | null;
-    daily_wage_2024?: number | null;
-    industry_median_wage?: number | null;
-    wage_dev_industry_pct?: number | null;
-    wage_dev_city_pct?: number | null;
-    wage_cagr_pct?: number | null;
-    children?: unknown[];
-  };
-};
-type TipProps = { active?: boolean; payload?: TipPayload[] };
-
 function fmtSignedPct(v: number | null | undefined): string {
   if (v == null) return '—';
-  return `${v >= 0 ? '+' : ''}${fmtNum(v, 1)}%`;
+  return signedPct(v);
 }
 
-function LeafTooltip({ active, payload }: TipProps) {
+function LeafTooltip({ d }: { d: Leaf }) {
   const t = useT();
   const { lang } = useLang();
-  if (!active || !payload || payload.length === 0) return null;
-  const p = payload[0]?.payload;
-  if (!p || p.children) return null;
   return (
-    <div className="treemap-tooltip">
-      <div className="treemap-tooltip-name">{p.name}</div>
-      <div className="treemap-tooltip-section">{sectionLabel(p.section, lang)}</div>
+    <>
+      <div className="treemap-tooltip-name">{d.name}</div>
+      <div className="treemap-tooltip-section">{sectionLabel(d.section, lang)}</div>
       <dl className="treemap-tooltip-grid">
         <dt>{t('tip.workers2024')}</dt>
-        <dd>{fmtInt.format(p.workers_2024 ?? 0)}</dd>
+        <dd>{fmtInt.format(d.workers_2024)}</dd>
         <dt>{t('tip.pci')}</dt>
-        <dd>{p.pci == null ? '—' : fmtNum(p.pci, 2)}</dd>
+        <dd>{d.pci == null ? '—' : fmtNum(d.pci, 2)}</dd>
         <dt>{t('tip.dailyWage2024')}</dt>
-        <dd>{p.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(p.daily_wage_2024))}</dd>
+        <dd>{d.daily_wage_2024 == null ? '—' : fmtInt.format(Math.round(d.daily_wage_2024))}</dd>
         <dt>{t('tip.wageGrowth')}</dt>
         <dd>
-          {p.wage_cagr_pct == null
+          {d.wage_cagr_pct == null
             ? '—'
-            : `${p.wage_cagr_pct >= 0 ? '+' : ''}${fmtNum(p.wage_cagr_pct, 1)} ${t('tm.unit.perYr')}`}
+            : `${d.wage_cagr_pct >= 0 ? '+' : ''}${fmtNum(d.wage_cagr_pct, 1)} ${t('tm.unit.perYr')}`}
         </dd>
         <dt>{t('tip.vsIndustryNat')}</dt>
-        <dd>{fmtSignedPct(p.wage_dev_industry_pct)}</dd>
+        <dd>{fmtSignedPct(d.wage_dev_industry_pct)}</dd>
         <dt>{t('tip.vsCityMedian')}</dt>
-        <dd>{fmtSignedPct(p.wage_dev_city_pct)}</dd>
+        <dd>{fmtSignedPct(d.wage_dev_city_pct)}</dd>
       </dl>
-    </div>
+    </>
   );
 }

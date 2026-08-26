@@ -30,7 +30,10 @@ not from visual flourish.
   formulas. Generous prose width capped at ~920px so reading stays
   comfortable. No display font.
 - Charts: Recharts + d3-geo, monochrome where possible, accent for highlight.
-  No 3D, no glow, no skeuomorphism.
+  No 3D, no glow, no skeuomorphism. The two composition treemaps are the
+  exception: they own their layout (`morphLayout.ts`, d3-hierarchy +
+  d3-force) so the same marks can be re-read as a ranking, a distribution
+  or a scatter. See `MorphTreemap.tsx`.
 
 ### Anti-references
 - Modern SaaS dashboards (Linear, Vercel, Stripe analytics) — too dense,
