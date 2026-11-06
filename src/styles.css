@@ -725,3 +725,118 @@ strong { font-weight: 600; }
   color: var(--accent);
   text-decoration-color: var(--accent);
 }
+
+/* ── Opportunities ──────────────────────────────────────────────────── */
+/* Specialisation key for the industry-space scatter: three greys rather than a
+   colour, so the page keeps its single accent. */
+.opp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.1rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.opp-legend > span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.opp-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.opp-swatch--ring { background: var(--bg); border: 1px solid #8a8a85; }
+.opp-counts {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 0.5rem 0 0;
+}
+.opp-tip-hint {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Detail for one industry. A plain sheet over a light veil: a rule, not a shadow. */
+.opp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.78);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh var(--gutter);
+  overflow-y: auto;
+}
+.opp-modal-box {
+  position: relative;
+  width: 100%;
+  max-width: 1000px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  padding: 1.3rem 1.6rem 1.5rem;
+}
+.opp-modal-box h4 {
+  margin: 0 2rem 0.2rem 0;
+  font-size: 1.15rem;
+}
+.opp-modal-box h5 {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.opp-modal-x {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.9rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.opp-modal-x:hover { color: var(--fg); }
+.opp-modal-meta {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.opp-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.8rem;
+}
+@media (max-width: 760px) {
+  .opp-modal-grid { grid-template-columns: 1fr; }
+}
+.opp-modal-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0.3rem 0;
+  line-height: 1.45;
+}
+.opp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+.opp-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+  padding: 0.2rem 0.35rem;
+}
+.opp-table td {
+  text-align: left;
+  padding: 0.2rem 0.35rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.opp-table .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.opp-table tr.off td { color: var(--muted); }
+.opp-table tr.self td { background: var(--bg-alt); font-weight: 600; }

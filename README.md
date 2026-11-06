@@ -42,6 +42,10 @@ public/data/
 ├── city_commune_lookup.parquet
 ├── city_shift_share.parquet
 ├── city_industry_shift_share.parquet
+├── city_industry_density.parquet  # opportunities: relatedness densities per city × industry
+├── flow_density_neighbours.parquet # opportunities: labour-flow neighbour sets
+├── industry_attributes.parquet    # opportunities: PCI, wage, growth, labels
+├── city_coi.parquet               # opportunities: Complexity Outlook Index, three ways
 ├── industry_translations.csv      # English labels for CNSS industries
 └── city_maps_geo/                 # per-city *.geojson + index.json
 ```

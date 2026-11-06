@@ -7,6 +7,10 @@ import type {
   CityShiftShareRow,
   CityIndustryShiftShareRow,
   IndustryComplexityRow,
+  CityIndustryDensityRow,
+  FlowNeighbourRow,
+  IndustryAttributeRow,
+  CityCoiRow,
 } from './types';
 
 type State<T> = { data: T | null; loading: boolean; error: Error | null };
@@ -47,6 +51,21 @@ export const useCityIndustryShiftShare = () =>
   useResource<CityIndustryShiftShareRow[]>('/data/city_industry_shift_share.parquet', fetchParquet);
 export const useIndustryComplexity = () =>
   useResource<IndustryComplexityRow[]>('/data/industry_complexity.parquet', fetchParquet);
+
+// The density file carries three years and many diagnostic columns; read only
+// what the opportunities section uses. 2024 is filtered client-side.
+const DENSITY_COLS = [
+  'city_id', 'ind', 'year', 'rca', 'present', 'workers',
+  'density_colocation', 'density_flow', 'z_colocation', 'z_flow',
+];
+const fetchDensity = (p: string) => loadParquet<CityIndustryDensityRow>(p, DENSITY_COLS);
+export const useCityIndustryDensity = () =>
+  useResource<CityIndustryDensityRow[]>('/data/city_industry_density.parquet', fetchDensity);
+export const useFlowNeighbours = () =>
+  useResource<FlowNeighbourRow[]>('/data/flow_density_neighbours.parquet', fetchParquet);
+export const useIndustryAttributes = () =>
+  useResource<IndustryAttributeRow[]>('/data/industry_attributes.parquet', fetchParquet);
+export const useCityCoi = () => useResource<CityCoiRow[]>('/data/city_coi.parquet', fetchParquet);
 
 // Returns a Map<LIBELLE_ACTIVITE (FR), LIBELLE_EN>. Components fall back to the
 // French label when an entry is missing — keeps things readable mid-pipeline if

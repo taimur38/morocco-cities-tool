@@ -1382,4 +1382,141 @@ export const cityContent = {
       </>
     ),
   },
+
+  // --- Section 4: opportunities ---------------------------------------------
+  section4H3: {
+    en: (name: string) => <>4. Where {name} could diversify</>,
+    fr: (name: string) => <>4. Où {name} pourrait se diversifier</>,
+  },
+  oppIntroP: {
+    en: (name: string) => (
+      <>
+        An industry is a plausible next step for a city when the city already does
+        things that are close to it. Closeness is measured here in two ways from CNSS
+        data. Labour-flow relatedness treats two industries as close when more workers
+        move between them than their sizes would predict; it points to shared skills.
+        Co-location relatedness treats them as close when they tend to be found in the
+        same cities; it picks up shared skills too, but also whatever else those cities
+        have in common, such as inputs, infrastructure, market size or regulation. For
+        each industry, density then asks how much of what {name} is already specialised
+        in sits close to it. The labour-flow version counts the industry's ten nearest
+        neighbours; the co-location version compares {name}'s whole industrial profile
+        with the profile of cities where the industry is found.
+      </>
+    ),
+    fr: (name: string) => (
+      <>
+        Un secteur constitue une étape plausible pour une ville lorsque celle-ci exerce
+        déjà des activités qui lui sont proches. La proximité est mesurée ici de deux
+        façons à partir des données de la CNSS. La proximité par les flux de travail
+        considère deux secteurs comme proches lorsque davantage de travailleurs passent
+        de l'un à l'autre que leur taille ne le laisserait prévoir ; elle renvoie à des
+        compétences partagées. La proximité par co-localisation les considère comme
+        proches lorsqu'ils se trouvent souvent dans les mêmes villes ; elle capte aussi
+        les compétences partagées, mais également tout ce que ces villes ont d'autre en
+        commun : intrants, infrastructures, taille du marché ou réglementation. Pour
+        chaque secteur, la densité mesure ensuite quelle part de ce dans quoi {name}{' '}
+        est déjà spécialisée lui est proche. La version par flux de travail compte les
+        dix voisins les plus proches du secteur ; la version par co-localisation compare
+        le profil sectoriel de la ville à celui des villes où le secteur est présent.
+      </>
+    ),
+  },
+  oppSpaceTitle: {
+    en: (name: string) => <>{name}'s industries by the two kinds of relatedness</>,
+    fr: (name: string) => <>{name} : les secteurs selon les deux types de proximité</>,
+  },
+  oppSpaceCaption: {
+    en: (name: string) => (
+      <>
+        One dot per industry, in standard deviations from the average city × industry
+        pair in 2024. With the lines at the national average, a thinly diversified city
+        sits mostly toward the lower left; with the lines at {name}'s own mean, the
+        quadrants rank industries against the rest of the city. An industry high on
+        labour flow but low on co-location is one where the workforce is plausibly
+        adjacent, but the city's profile does not resemble that of the places where the
+        industry operates. Click a dot for the neighbours behind its labour-flow density
+        and the cities that host it.
+      </>
+    ),
+    fr: (_name: string) => (
+      <>
+        Un point par secteur, en écarts-types par rapport au couple ville × secteur
+        moyen en 2024. Avec les lignes à la moyenne nationale, une ville peu diversifiée
+        se situe surtout en bas à gauche ; avec les lignes à la moyenne propre à la ville, les
+        quadrants classent les secteurs par rapport au reste de la ville. Un secteur
+        élevé en flux de travail mais faible en co-localisation est un secteur pour
+        lequel la main-d'œuvre est vraisemblablement proche, mais dont les villes hôtes
+        ont un profil différent de celui de la ville. Cliquez sur un point pour voir les
+        voisins qui déterminent sa densité de flux de travail et les villes qui
+        l'accueillent.
+      </>
+    ),
+  },
+  oppOutlookP: {
+    en: (name: string) => (
+      <>
+        The same densities can be summed into a single measure of how much complexity
+        lies within reach. The Complexity Outlook Index adds up the complexity of the
+        industries a city does not yet have, each weighted by how close it is to what
+        the city already does. Entered together, the two densities predict which
+        industries cities gained between 2014 and 2024 better than either does alone,
+        so the default version weights each missing industry by its predicted
+        probability of entry from both. The horizontal axis asks a separate question:
+        larger cities tend to be more complex, so is {name} more or less complex than
+        its size would predict?
+      </>
+    ),
+    fr: (name: string) => (
+      <>
+        Les mêmes densités peuvent être agrégées en une mesure unique de la complexité
+        à portée de main. L'indice de perspectives de complexité additionne la
+        complexité des secteurs qu'une ville ne possède pas encore, chacun pondéré par
+        sa proximité avec ce que la ville fait déjà. Utilisées ensemble, les deux
+        densités prédisent mieux que chacune séparément les secteurs gagnés par les
+        villes entre 2014 et 2024 ; la version par défaut pondère donc chaque secteur
+        manquant par sa probabilité prédite d'entrée selon les deux. L'axe horizontal
+        pose une autre question : les grandes villes tendent à être plus complexes ;{' '}
+        {name} l'est-elle plus ou moins que sa taille ne le laisserait prévoir ?
+      </>
+    ),
+  },
+  oppOutlookTitle: {
+    en: (name: string) => <>{name}'s complexity relative to its size, and its outlook</>,
+    fr: (name: string) => <>{name} : complexité relative à la taille, et perspectives</>,
+  },
+  oppOutlookCaption: {
+    en: (_name: string) => (
+      <>
+        Horizontal: the residual from a regression of 2024 economic complexity (ECI,
+        from formal headcounts) on log 2024 population across cities. Vertical: the
+        Complexity Outlook Index, standardised across cities, under the selected
+        density. Switch the vertical axis to compare the three versions; click a city
+        to open its page.
+      </>
+    ),
+    fr: (_name: string) => (
+      <>
+        Horizontal : le résidu d'une régression de la complexité économique 2024 (ICE,
+        à partir des effectifs formels) sur le log de la population 2024 entre villes.
+        Vertical : l'indice de perspectives de complexité, standardisé entre villes,
+        selon la densité choisie. Changez l'axe vertical pour comparer les trois
+        versions ; cliquez sur une ville pour ouvrir sa page.
+      </>
+    ),
+  },
+  oppMissing: {
+    en: (name: string) => (
+      <>
+        Relatedness densities are not available for {name}: CNSS records no ville that
+        maps to it.
+      </>
+    ),
+    fr: (name: string) => (
+      <>
+        Les densités de proximité ne sont pas disponibles pour {name} : aucune ville
+        CNSS ne lui est rattachée.
+      </>
+    ),
+  },
 };

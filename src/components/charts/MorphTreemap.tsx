@@ -75,17 +75,17 @@ const INK = {
 // The furniture's two beats. Out is quick — nothing is being read while it
 // leaves — and in is timed to land with the marks, so the axis appears under
 // dots that have arrived rather than over cells that are still a treemap.
-const FURNITURE_OUT_MS = 200;
-const FURNITURE_IN_MS = 300;
+export const FURNITURE_OUT_MS = 200;
+export const FURNITURE_IN_MS = 300;
 
 // Long enough to read as travel rather than a cut. Below ~700ms the eye loses
 // individual cells in the crowd; above ~1.2s the reader has already looked away.
-const MOVE_MS = 950;
+export const MOVE_MS = 950;
 
 // d3.easeCubicInOut, which is what the marks are tweened with. Slow at both
 // ends so a cell's departure and its arrival are both readable, and quick
 // through the middle where nothing is being read anyway.
-const easeCubicInOut = (t: number): number =>
+export const easeCubicInOut = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -93,7 +93,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 // The one thing this component needs from an animation library, so it does not
 // take one. Reading the query once at mount would miss a reader who changes the
 // setting with the page open, hence the listener.
-function usePrefersReducedMotion(): boolean {
+export function usePrefersReducedMotion(): boolean {
   const [reduce, setReduce] = useState(
     () =>
       typeof window !== 'undefined' &&

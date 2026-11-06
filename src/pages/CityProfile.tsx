@@ -7,6 +7,10 @@ import {
   useCityIndustryShiftShare,
   useIndustryComplexity,
   useIndustryTranslations,
+  useCityIndustryDensity,
+  useFlowNeighbours,
+  useIndustryAttributes,
+  useCityCoi,
 } from '../data/usePanel';
 import CitySelect from '../components/CitySelect';
 import SectionLevels from '../components/profile/SectionLevels';
@@ -16,6 +20,8 @@ import IndustryMovers from '../components/charts/IndustryMovers';
 import NewIndustriesTreemap from '../components/charts/NewIndustriesTreemap';
 import SectionOverviewTreemap from '../components/charts/SectionOverviewTreemap';
 import CityMap from '../components/charts/CityMap';
+import OpportunitySpace from '../components/charts/OpportunitySpace';
+import ComplexityOutlook from '../components/charts/ComplexityOutlook';
 import { citySlug } from '../lib/slug';
 import { cleanCityName } from '../lib/derive';
 import { useLang } from '../i18n/context';
@@ -30,6 +36,10 @@ export default function CityProfile() {
   const ssIndustry = useCityIndustryShiftShare();
   const industryComplexity = useIndustryComplexity();
   const translations = useIndustryTranslations();
+  const density = useCityIndustryDensity();
+  const flowNeighbours = useFlowNeighbours();
+  const industryAttributes = useIndustryAttributes();
+  const coi = useCityCoi();
   const { lang } = useLang();
   const t = useT();
   const cc = cityContent;
@@ -51,6 +61,13 @@ export default function CityProfile() {
     }
     return m;
   }, [ss.data]);
+
+  // Raw names by id, for links from the opportunities detail to other cities.
+  const cityNames = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const r of panel.data ?? []) m.set(r.city_id, r.city_name);
+    return m;
+  }, [panel.data]);
 
   if (panel.loading) return <p className="loading">{t('common.loading')}</p>;
   if (panel.error) return <p className="error">{panel.error.message}</p>;
@@ -202,6 +219,47 @@ export default function CityProfile() {
         <p className="chart-caption">{cc.communeCaption[lang](city.name)}</p>
         <CityMap slug={slug} cityName={city.name} variant="explorer" />
       </div>
+
+      {/* SECTION 4 — OPPORTUNITIES */}
+      <h3>{cc.section4H3[lang](city.name)}</h3>
+      <p>{cc.oppIntroP[lang](city.name)}</p>
+      {(density.loading || flowNeighbours.loading || industryAttributes.loading) && (
+        <p className="loading">{t('common.loading')}</p>
+      )}
+      {density.data &&
+        flowNeighbours.data &&
+        industryAttributes.data &&
+        (density.data.some((r) => r.city_id === city.id) ? (
+          <div className="chart-block">
+            <h4>{cc.oppSpaceTitle[lang](city.name)}</h4>
+            <p className="chart-caption">{cc.oppSpaceCaption[lang](city.name)}</p>
+            <OpportunitySpace
+              density={density.data}
+              neighbours={flowNeighbours.data}
+              attributes={industryAttributes.data}
+              cityId={city.id}
+              cityName={city.name}
+              cityNames={cityNames}
+              cityMedianWage={cityMedianWage}
+            />
+          </div>
+        ) : (
+          <p className="muted">{cc.oppMissing[lang](city.name)}</p>
+        ))}
+
+      <p>{cc.oppOutlookP[lang](city.name)}</p>
+      {coi.data && complexity.data && (
+        <div className="chart-block">
+          <h4>{cc.oppOutlookTitle[lang](city.name)}</h4>
+          <p className="chart-caption">{cc.oppOutlookCaption[lang](city.name)}</p>
+          <ComplexityOutlook
+            panel={panel.data}
+            complexity={complexity.data}
+            coi={coi.data}
+            cityId={city.id}
+          />
+        </div>
+      )}
     </article>
   );
 }

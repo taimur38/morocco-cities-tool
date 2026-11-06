@@ -23,6 +23,13 @@ const FILES = [
   'city_commune_lookup.parquet',
   'city_shift_share.parquet',
   'city_industry_shift_share.parquet',
+  // Opportunities section: relatedness densities per city x industry, the
+  // labour-flow neighbour sets behind them, industry attributes (PCI, wage,
+  // growth, labels) and the three Complexity Outlook Indices. From 16- and 17-.
+  'city_industry_density.parquet',
+  'flow_density_neighbours.parquet',
+  'industry_attributes.parquet',
+  'city_coi.parquet',
 ];
 
 // English labels for CNSS industries — the upstream parquet only carries the

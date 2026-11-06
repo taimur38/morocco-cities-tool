@@ -119,3 +119,61 @@ export type IndustryComplexityRow = {
   ubiquity_workers: number | null;
   ubiquity_wages: number | null;
 };
+
+// ── Opportunities section ─────────────────────────────────────────────────
+// One row per (city, industry, year), from generated/city_industry_density.parquet
+// (04-spatial-equilibrium/16-density-comparison.R). Only the columns the tool
+// reads are listed. z_* are standardised within year across all cells.
+// density_flow uses each industry's ten nearest labour-flow neighbours (links
+// with >= 20 job changes); density_colocation uses every positive weight.
+export type CityIndustryDensityRow = {
+  city_id: number;
+  ind: string;
+  year: number;
+  rca: number;
+  present: number;
+  workers: number;
+  density_colocation: number;
+  density_flow: number | null;
+  z_colocation: number;
+  z_flow: number | null;
+};
+
+// The labour-flow neighbour set behind each industry's density
+// (generated/flow_density_neighbours.parquet). `w` is the clipped relatedness
+// weight; the density of `ind` in a city is the sum of `w` over neighbours the
+// city is specialised in, divided by the sum over all of them.
+export type FlowNeighbourRow = {
+  ind: string;
+  neighbour: string;
+  w: number;
+  n_moves: number;
+};
+
+// generated/industry_attributes.parquet (17-). pci is standardised; wage is the
+// national days-weighted daily wage in MAD; cagr is 2014-24 growth in days worked.
+export type IndustryAttributeRow = {
+  ind: string;
+  pci: number;
+  wage: number | null;
+  cagr: number | null;
+  label: string;
+  label_fr: string;
+  sector: string;
+};
+
+// generated/city_coi.parquet (17-). Complexity Outlook Index three ways:
+// co-location density, labour-flow density, and predicted entry probability
+// from both densities together. z_* are standardised across cities.
+export type CityCoiRow = {
+  city_id: number;
+  city_name: string;
+  coi_colocation: number;
+  coi_flow: number;
+  coi_joint: number;
+  z_colocation: number;
+  z_flow: number;
+  z_joint: number;
+  diversity: number;
+  workers: number;
+};
