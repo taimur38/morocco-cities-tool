@@ -241,12 +241,12 @@ export default function CityProfile() {
               cityName={city.name}
               cityNames={cityNames}
               cityMedianWage={cityMedianWage}
-              typeNeighbours={
-                coi.data
-                  ?.find((c) => c.city_id === city.id)
-                  ?.type_neighbours.split(',')
-                  .map(Number) ?? []
-              }
+              typeNeighbours={(() => {
+                const c = coi.data?.find((r) => r.city_id === city.id);
+                if (!c) return [];
+                const w = c.type_weights.split(',').map(Number);
+                return c.type_neighbours.split(',').map((id, k) => ({ id: Number(id), w: w[k] }));
+              })()}
             />
           </div>
         ) : (

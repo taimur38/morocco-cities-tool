@@ -127,8 +127,8 @@ export type IndustryComplexityRow = {
 // density_flow uses each industry's ten nearest labour-flow neighbours (links
 // with >= 20 job changes; NA below five such neighbours); density_colocation
 // uses every positive weight; density_type is the share of the city's ten
-// nearest cities in principal-component space (its type neighbours) that are
-// specialised in the industry.
+// other cities specialised in the industry, each weighted by its similarity to
+// this city on the leading principal components of cities' industry profiles.
 export type CityIndustryDensityRow = {
   city_id: number;
   ind: string;
@@ -181,6 +181,8 @@ export type CityCoiRow = {
   z_joint: number;
   diversity: number;
   workers: number;
-  /** the city's ten type neighbours, comma-separated city_ids, nearest first */
+  /** the other cities, comma-separated city_ids, most similar first */
   type_neighbours: string;
+  /** their similarity weights in city-type density (sum to one), same order */
+  type_weights: string;
 };

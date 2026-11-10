@@ -18,9 +18,9 @@ import { useT } from '../../i18n/ui';
 // (how far the city's whole industrial profile resembles that of cities where
 // the industry is found) and labour flow on y (how many of the industry's ten
 // nearest skill neighbours the city is specialised in). The reader can swap x
-// for city-type density: how many of the ten cities most like this one, on the
-// leading principal components of cities' industry profiles, are specialised in
-// the industry. Swapping tweens the marks horizontally. Both are standardised
+// for city-type density: the share of other cities specialised in the industry,
+// each weighted by how similar it is to this one on the leading principal
+// components of cities' industry profiles. Swapping tweens the marks horizontally. Both are standardised
 // across every city x industry cell in 2024, so the axes are the same for every
 // city; the quadrant lines are cut either at that national average or at this
 // city's own mean, and moving between the two is a tween of the lines.
@@ -62,8 +62,8 @@ type Props = {
   /** raw city names by id, for the host-city list */
   cityNames: Map<number, string>;
   cityMedianWage: number | null;
-  /** this city's ten type neighbours (city_ids, nearest first) */
-  typeNeighbours: number[];
+  /** the other cities and their weights in city-type density, most similar first */
+  typeNeighbours: { id: number; w: number }[];
 };
 
 export default function OpportunitySpace({
@@ -231,7 +231,7 @@ export default function OpportunitySpace({
           <dd>{sg(r.z_colocation)} SD</dd>
           <dt>{t('opp.tip.type')}</dt>
           <dd>
-            {t('opp.tip.typeCount', { k: Math.round(r.density_type * 10) })} ({sg(r.z_type)} SD)
+            {r.density_type.toFixed(2)} ({sg(r.z_type)} SD)
           </dd>
           <dt>RCA</dt>
           <dd>{r.rca.toFixed(2)}</dd>
@@ -418,8 +418,8 @@ export default function OpportunitySpace({
 // Co-location cannot be decomposed that way (it averages over the whole
 // profile), so the right-hand side shows instead the cities the industry is
 // actually found in, which is what the city is being compared against. With
-// city type on x, the right-hand side is the exact decomposition of that
-// density instead: the city's ten type neighbours and which host the industry.
+// city type on x, the right-hand side decomposes that density instead: the
+// most similar cities, their weights, and which of them host the industry.
 
 function OpportunityDetail({
   ind,
@@ -444,7 +444,7 @@ function OpportunityDetail({
   quadrant: Quadrant;
   quadrantLabel: (q: Quadrant) => string;
   xAxis: XAxis;
-  typeNeighbours: number[];
+  typeNeighbours: { id: number; w: number }[];
   relative: boolean;
   d24: CityIndustryDensityRow[];
   rowBy: Map<string, CityIndustryDensityRow>;
@@ -483,8 +483,8 @@ function OpportunityDetail({
   const shown = hosts.slice(0, 12);
   const hostRows = shown.some((r) => r.city_id === cityId) ? shown : [...shown, row];
   const cellBy = new Map(cells.map((r) => [r.city_id, r]));
-  const typeRows = typeNeighbours.map((id) => ({ id, cell: cellBy.get(id) }));
-  const nType = typeRows.filter((r) => (r.cell?.rca ?? 0) >= 1).length;
+  const typeRows = typeNeighbours.slice(0, 10).map(({ id, w }) => ({ id, w, cell: cellBy.get(id) }));
+  const wTop = typeRows.reduce((s, r) => s + r.w, 0);
   const cityCell = (id: number) => {
     const raw = cityNames.get(id) ?? String(id);
     return id === cityId ? (
@@ -547,28 +547,30 @@ function OpportunityDetail({
           </section>
           {xAxis === 'type' ? (
           <section>
-            <h5>{t('opp.modal.typeTitle', { k: nType, n: typeRows.length, z: sg(row.z_type) })}</h5>
-            <p className="opp-modal-note">{t('opp.modal.typeLead', { k: nType, n: typeRows.length, city: cityName })}</p>
+            <h5>{t('opp.modal.typeTitle', { d: row.density_type.toFixed(2), z: sg(row.z_type) })}</h5>
+            <p className="opp-modal-note">
+              {t('opp.modal.typeLead', { n: typeRows.length, city: cityName, w: Math.round(100 * wTop) })}
+            </p>
             <table className="opp-table">
               <thead>
                 <tr>
                   <th />
                   <th>{t('opp.modal.city')}</th>
+                  <th className="n">{t('opp.modal.weight')}</th>
                   <th className="n">RCA</th>
                   <th className="n">{t('opp.modal.workers')}</th>
-                  <th className="n">{t('opp.modal.cityWorkers')}</th>
                 </tr>
               </thead>
               <tbody>
-                {typeRows.map(({ id, cell }) => {
+                {typeRows.map(({ id, w, cell }) => {
                   const on = (cell?.rca ?? 0) >= 1;
                   return (
                     <tr key={id} className={on ? undefined : 'off'}>
                       <td>{on ? '●' : '○'}</td>
                       <td>{cityCell(id)}</td>
+                      <td className="n">{(100 * w).toFixed(1)}%</td>
                       <td className="n">{(cell?.rca ?? 0).toFixed(2)}</td>
                       <td className="n">{fmtInt.format(cell?.workers ?? 0)}</td>
-                      <td className="n">{fmtInt.format(byCity.get(id)?.workers ?? 0)}</td>
                     </tr>
                   );
                 })}

@@ -706,22 +706,21 @@ export const UI: Record<string, Entry> = {
     fr: 'Densité par type de ville (écarts-types à la moyenne nationale) →',
   },
   'opp.tip.type': { en: 'City-type density', fr: 'Densité par type de ville' },
-  'opp.tip.typeCount': { en: '{k} of 10 similar cities', fr: '{k} des 10 villes semblables' },
   'opp.note.type': {
-    en: 'City-type density places every city by the main dimensions along which Moroccan cities’ industry mixes differ: mostly a single gradient from large, diversified cities to small agricultural towns, plus a few regional types such as the southern fishing coast and the tourist towns. It takes the ten cities most similar to {city} on those dimensions and counts how many are specialised (RCA ≥ 1) in each industry, so it reads as how common the industry is among cities like {city}. It largely agrees with co-location density, because co-location in Morocco mostly reflects the same gradient, but it is less noisy and predicts 2014–2024 entry about as well. Because it counts cities out of ten, the dots fall in columns. An industry high on labour flow and low on city type is one whose related skills {city} already has, but which cities of its kind rarely host.',
-    fr: 'La densité par type de ville situe chaque ville selon les principales dimensions qui distinguent la composition sectorielle des villes marocaines : surtout un gradient unique, des grandes villes diversifiées aux petites villes agricoles, plus quelques types régionaux comme la côte de pêche du Sud et les villes touristiques. Elle retient les dix villes les plus semblables à {city} sur ces dimensions et compte combien sont spécialisées (ACR ≥ 1) dans chaque secteur : elle indique donc à quel point le secteur est courant dans les villes comparables. Elle concorde largement avec la densité de co-localisation, car la co-localisation au Maroc reflète surtout ce même gradient, mais elle est moins bruitée et prédit l’entrée de 2014 à 2024 à peu près aussi bien. Comme elle compte des villes sur dix, les points s’alignent en colonnes. Un secteur haut en flux de travail et bas en type de ville est un secteur dont la ville possède déjà les compétences voisines, mais que les villes de son type accueillent rarement.',
+    en: 'City-type density places every city by the main dimensions along which Moroccan cities’ industry mixes differ: mostly a single gradient from large, diversified cities to small agricultural towns, plus a few regional types such as the southern fishing coast and the tourist towns. It is the share of other cities specialised (RCA ≥ 1) in each industry, with each city weighted by how similar it is to {city}, so that the ten or so most similar cities carry most of the weight. It reads as how common the industry is among cities like {city}. It largely agrees with co-location density, because co-location in Morocco mostly reflects the same gradient, but it is less noisy and predicts 2014–2024 entry slightly better. An industry high on labour flow and low on city type is one whose related skills {city} already has, but which cities of its kind rarely host.',
+    fr: 'La densité par type de ville situe chaque ville selon les principales dimensions qui distinguent la composition sectorielle des villes marocaines : surtout un gradient unique, des grandes villes diversifiées aux petites villes agricoles, plus quelques types régionaux comme la côte de pêche du Sud et les villes touristiques. C’est la part des autres villes spécialisées (ACR ≥ 1) dans chaque secteur, chaque ville étant pondérée par sa ressemblance avec {city}, de sorte que la dizaine de villes les plus semblables pèse le plus. Elle indique donc à quel point le secteur est courant dans les villes comparables. Elle concorde largement avec la densité de co-localisation, car la co-localisation au Maroc reflète surtout ce même gradient, mais elle est moins bruitée et prédit un peu mieux l’entrée de 2014 à 2024. Un secteur haut en flux de travail et bas en type de ville est un secteur dont la ville possède déjà les compétences voisines, mais que les villes de son type accueillent rarement.',
   },
   'opp.modal.typeTitle': {
-    en: 'City type: {k} of {n} similar cities ({z} SD)',
-    fr: 'Type de ville : {k} des {n} villes semblables ({z} é.-t.)',
+    en: 'City type: density {d} ({z} SD)',
+    fr: 'Type de ville : densité {d} ({z} é.-t.)',
   },
   'opp.modal.typeLead': {
-    en: 'Of the {n} cities most similar to {city}, the number specialised (RCA ≥ 1) in this industry is {k}. Similarity is measured on the main dimensions of cities’ industry mixes: chiefly how large and diversified a city is, plus regional types such as the fishing coast and the tourist towns.',
-    fr: 'Parmi les {n} villes les plus semblables à {city}, le nombre de villes spécialisées (ACR ≥ 1) dans ce secteur est de {k}. La ressemblance est mesurée sur les principales dimensions de la composition sectorielle des villes : surtout leur taille et leur diversification, plus des types régionaux comme la côte de pêche et les villes touristiques.',
+    en: 'The share of other cities specialised (RCA ≥ 1) in this industry, each weighted by how similar it is to {city} on the main dimensions of cities’ industry mixes: chiefly how large and diversified a city is, plus regional types such as the fishing coast and the tourist towns. The {n} most similar cities, listed, carry {w}% of the weight.',
+    fr: 'La part des autres villes spécialisées (ACR ≥ 1) dans ce secteur, chacune pondérée par sa ressemblance avec {city} sur les principales dimensions de la composition sectorielle des villes : surtout leur taille et leur diversification, plus des types régionaux comme la côte de pêche et les villes touristiques. Les {n} villes les plus semblables, listées ici, portent {w} % du poids.',
   },
   'opp.modal.typeNote': {
-    en: 'Nearest first. Workers: formal employment in this industry. City workers: all formal workers. The specialised cities (●) make up the density.',
-    fr: 'Les plus proches d’abord. Travailleurs : emploi formel dans ce secteur. Travailleurs de la ville : ensemble des travailleurs formels. Les villes spécialisées (●) forment la densité.',
+    en: 'Most similar first. Weight: the city’s share in the density. Workers: formal employment in this industry. Specialised cities (●) contribute their weight to the density.',
+    fr: 'Les plus semblables d’abord. Poids : part de la ville dans la densité. Travailleurs : emploi formel dans ce secteur. Les villes spécialisées (●) apportent leur poids à la densité.',
   },
   'opp.axis.x': {
     en: 'Co-location density (SD from the national mean) →',
@@ -786,6 +785,7 @@ export const UI: Record<string, Entry> = {
     fr: 'Spécialisation (ACR ≥ 1) dans {k} des {n} villes. La densité de co-localisation mesure à quel point la composition sectorielle de la ville ({city}) ressemble à celle de ces villes. Principales villes hôtes par emploi dans le secteur.',
   },
   'opp.modal.city': { en: 'City', fr: 'Ville' },
+  'opp.modal.weight': { en: 'Weight', fr: 'Poids' },
   'opp.modal.workers': { en: 'Workers', fr: 'Travailleurs' },
   'opp.modal.natShare': { en: 'Share', fr: 'Part' },
   'opp.modal.cityWorkers': { en: 'City workers', fr: 'Travailleurs de la ville' },
