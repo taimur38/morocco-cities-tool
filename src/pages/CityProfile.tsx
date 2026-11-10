@@ -243,7 +243,7 @@ export default function CityProfile() {
               cityMedianWage={cityMedianWage}
               typeNeighbours={(() => {
                 const c = coi.data?.find((r) => r.city_id === city.id);
-                if (!c) return [];
+                if (!c?.type_neighbours || !c.type_weights) return [];
                 const w = c.type_weights.split(',').map(Number);
                 return c.type_neighbours.split(',').map((id, k) => ({ id: Number(id), w: w[k] }));
               })()}

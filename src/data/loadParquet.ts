@@ -1,4 +1,5 @@
 import { asyncBufferFromUrl, parquetReadObjects } from 'hyparquet';
+import { dataUrl } from './dataUrl';
 
 // Reads a parquet file served from /public/data/ into an array of row objects.
 // hyparquet returns INT64 columns as bigint by default; population/worker counts
@@ -6,7 +7,7 @@ import { asyncBufferFromUrl, parquetReadObjects } from 'hyparquet';
 // `columns` limits the read to the named columns; hyparquet then fetches only
 // those column chunks, which matters for the wide density file.
 export async function loadParquet<T>(path: string, columns?: string[]): Promise<T[]> {
-  const url = new URL(path, window.location.origin).toString();
+  const url = new URL(dataUrl(path), window.location.origin).toString();
   const file = await asyncBufferFromUrl({ url });
   const rows = await parquetReadObjects({ file, columns });
   return rows.map(coerceBigints) as T[];

@@ -1,8 +1,10 @@
+import { dataUrl } from './dataUrl';
+
 // Minimal CSV reader for the small lookup files we ship next to the parquets.
 // Handles RFC-4180-style quoted fields (commas/newlines inside double-quoted
 // values, "" as an escaped quote). Not a full CSV parser — fine for our use.
 export async function loadCsv(path: string): Promise<Record<string, string>[]> {
-  const url = new URL(path, window.location.origin).toString();
+  const url = new URL(dataUrl(path), window.location.origin).toString();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load ${path}: ${res.status}`);
   return parseCsv(await res.text());

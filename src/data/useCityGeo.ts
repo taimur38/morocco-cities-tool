@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FeatureCollection, Feature, MultiPolygon, Polygon } from 'geojson';
+import { dataUrl } from './dataUrl';
 
 export type CommuneProps = {
   kind: 'commune' | 'fua';
@@ -43,7 +44,7 @@ const cache = new Map<string, Promise<CityFeatureCollection>>();
 
 function fetchGeo(slug: string): Promise<CityFeatureCollection> {
   const url = `/data/city_maps_geo/${slug}.geojson`;
-  return fetch(url).then((r) => {
+  return fetch(dataUrl(url)).then((r) => {
     if (!r.ok) throw new Error(`failed to fetch ${url}: ${r.status}`);
     return r.json() as Promise<CityFeatureCollection>;
   });
@@ -91,7 +92,7 @@ export function useCityGeo(slug: string): State {
 let basePromise: Promise<BaseFeatureCollection> | null = null;
 function fetchBase(): Promise<BaseFeatureCollection> {
   const url = '/data/city_maps_geo/morocco_communes_base.geojson';
-  return fetch(url).then((r) => {
+  return fetch(dataUrl(url)).then((r) => {
     if (!r.ok) throw new Error(`failed to fetch ${url}: ${r.status}`);
     return r.json() as Promise<BaseFeatureCollection>;
   });
