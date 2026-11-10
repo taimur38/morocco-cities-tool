@@ -125,7 +125,10 @@ export type IndustryComplexityRow = {
 // (04-spatial-equilibrium/16-density-comparison.R). Only the columns the tool
 // reads are listed. z_* are standardised within year across all cells.
 // density_flow uses each industry's ten nearest labour-flow neighbours (links
-// with >= 20 job changes); density_colocation uses every positive weight.
+// with >= 20 job changes; NA below five such neighbours); density_colocation
+// uses every positive weight; density_type is the share of the city's ten
+// nearest cities in principal-component space (its type neighbours) that are
+// specialised in the industry.
 export type CityIndustryDensityRow = {
   city_id: number;
   ind: string;
@@ -137,6 +140,8 @@ export type CityIndustryDensityRow = {
   density_flow: number | null;
   z_colocation: number;
   z_flow: number | null;
+  density_type: number;
+  z_type: number;
 };
 
 // The labour-flow neighbour set behind each industry's density
@@ -176,4 +181,6 @@ export type CityCoiRow = {
   z_joint: number;
   diversity: number;
   workers: number;
+  /** the city's ten type neighbours, comma-separated city_ids, nearest first */
+  type_neighbours: string;
 };

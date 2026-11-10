@@ -1435,8 +1435,9 @@ export const cityContent = {
         quadrants rank industries against the rest of the city. An industry high on
         labour flow but low on co-location is one where the workforce is plausibly
         adjacent, but the city's profile does not resemble that of the places where the
-        industry operates. Click a dot for the neighbours behind its labour-flow density
-        and the cities that host it.
+        industry operates. The horizontal axis can be switched to city-type density, which
+        is explained below the chart. Click a dot for the neighbours behind its labour-flow
+        density and the cities behind the horizontal axis.
       </>
     ),
     fr: (_name: string) => (
@@ -1447,9 +1448,10 @@ export const cityContent = {
         quadrants classent les secteurs par rapport au reste de la ville. Un secteur
         élevé en flux de travail mais faible en co-localisation est un secteur pour
         lequel la main-d'œuvre est vraisemblablement proche, mais dont les villes hôtes
-        ont un profil différent de celui de la ville. Cliquez sur un point pour voir les
-        voisins qui déterminent sa densité de flux de travail et les villes qui
-        l'accueillent.
+        ont un profil différent de celui de la ville. L'axe horizontal peut aussi montrer
+        la densité par type de ville, expliquée sous le graphique. Cliquez sur un point pour
+        voir les voisins qui déterminent sa densité de flux de travail et les villes
+        derrière l'axe horizontal.
       </>
     ),
   },

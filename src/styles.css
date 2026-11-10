@@ -840,3 +840,11 @@ strong { font-weight: 600; }
 .opp-table .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .opp-table tr.off td { color: var(--muted); }
 .opp-table tr.self td { background: var(--bg-alt); font-weight: 600; }
+
+.opp-note {
+  font-size: 0.9rem;
+  color: var(--muted);
+  max-width: 72ch;
+  margin: 0.4rem 0 0;
+  line-height: 1.5;
+}

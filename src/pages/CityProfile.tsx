@@ -241,6 +241,12 @@ export default function CityProfile() {
               cityName={city.name}
               cityNames={cityNames}
               cityMedianWage={cityMedianWage}
+              typeNeighbours={
+                coi.data
+                  ?.find((c) => c.city_id === city.id)
+                  ?.type_neighbours.split(',')
+                  .map(Number) ?? []
+              }
             />
           </div>
         ) : (

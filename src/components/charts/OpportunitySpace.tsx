@@ -17,7 +17,10 @@ import { useT } from '../../i18n/ui';
 // The city's industries placed by two relatedness densities: co-location on x
 // (how far the city's whole industrial profile resembles that of cities where
 // the industry is found) and labour flow on y (how many of the industry's ten
-// nearest skill neighbours the city is specialised in). Both are standardised
+// nearest skill neighbours the city is specialised in). The reader can swap x
+// for city-type density: how many of the ten cities most like this one, on the
+// leading principal components of cities' industry profiles, are specialised in
+// the industry. Swapping tweens the marks horizontally. Both are standardised
 // across every city x industry cell in 2024, so the axes are the same for every
 // city; the quadrant lines are cut either at that national average or at this
 // city's own mean, and moving between the two is a tween of the lines.
@@ -26,6 +29,7 @@ type Show = 'all' | 'barely' | 'somewhat' | 'present';
 type Lines = 'abs' | 'city';
 type Colour = 'spec' | 'complexity' | 'wage';
 type Size = 'uniform' | 'national' | 'local';
+type XAxis = 'colo' | 'type';
 export type Quadrant = 'both' | 'labour' | 'colocation' | 'neither';
 
 const INK = '#1a1a1a';
@@ -58,6 +62,8 @@ type Props = {
   /** raw city names by id, for the host-city list */
   cityNames: Map<number, string>;
   cityMedianWage: number | null;
+  /** this city's ten type neighbours (city_ids, nearest first) */
+  typeNeighbours: number[];
 };
 
 export default function OpportunitySpace({
@@ -68,6 +74,7 @@ export default function OpportunitySpace({
   cityName,
   cityNames,
   cityMedianWage,
+  typeNeighbours,
 }: Props) {
   const t = useT();
   const { lang } = useLang();
@@ -76,6 +83,7 @@ export default function OpportunitySpace({
   const [sector, setSector] = useState<string>('all');
   const [colour, setColour] = useState<Colour>('spec');
   const [size, setSize] = useState<Size>('uniform');
+  const [xAxis, setXAxis] = useState<XAxis>('colo');
   const [zoom, setZoom] = useState<Domain | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -97,6 +105,7 @@ export default function OpportunitySpace({
     [d24, cityId],
   );
   const rowBy = useMemo(() => new Map(rows.map((r) => [r.ind, r])), [rows]);
+  const xv = (r: CityIndustryDensityRow) => (xAxis === 'type' ? r.z_type : r.z_colocation);
 
   // The city's own mean over every industry, independent of the filters, so the
   // lines do not move when the reader narrows what is shown.
@@ -104,10 +113,12 @@ export default function OpportunitySpace({
     const n = rows.length || 1;
     return {
       zc: rows.reduce((s, r) => s + r.z_colocation, 0) / n,
+      zt: rows.reduce((s, r) => s + r.z_type, 0) / n,
       zf: rows.reduce((s, r) => s + (r.z_flow as number), 0) / n,
     };
   }, [rows]);
-  const cx = lines === 'city' ? cityMean.zc : 0;
+  const meanX = xAxis === 'type' ? cityMean.zt : cityMean.zc;
+  const cx = lines === 'city' ? meanX : 0;
   const cy = lines === 'city' ? cityMean.zf : 0;
 
   const national = useMemo(() => {
@@ -158,7 +169,7 @@ export default function OpportunitySpace({
         const on = visible(r);
         return {
           key: r.ind,
-          x: r.z_colocation,
+          x: xv(r),
           y: r.z_flow,
           r: sizeOf(r.ind),
           fill,
@@ -169,7 +180,7 @@ export default function OpportunitySpace({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, show, sector, colour, sizeOf, selected, pciScale, cityMedianWage, attrBy],
+    [rows, show, sector, colour, sizeOf, selected, pciScale, cityMedianWage, attrBy, xAxis],
   );
 
   const counts = useMemo(() => {
@@ -178,23 +189,27 @@ export default function OpportunitySpace({
     for (const r of rows) {
       if (!visible(r)) continue;
       n++;
-      c[quadrantOf(r.z_colocation, r.z_flow as number, cx, cy)]++;
+      c[quadrantOf(xv(r), r.z_flow as number, cx, cy)]++;
     }
     return { c, n };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, show, sector, cx, cy, attrBy]);
+  }, [rows, show, sector, cx, cy, attrBy, xAxis]);
 
   // Fixed to every industry in the city, so filtering fades marks out without
   // rescaling the axes under the ones that remain.
   const domain = useMemo<Domain>(() => {
-    const xs = rows.map((r) => r.z_colocation).concat([0, cityMean.zc]);
+    const xs = rows.map((r) => (xAxis === 'type' ? r.z_type : r.z_colocation)).concat([0, meanX]);
     const ys = rows.map((r) => r.z_flow as number).concat([0, cityMean.zf]);
     const pad = (lo: number, hi: number): [number, number] => {
       const p = (hi - lo) * 0.05 || 0.5;
       return [lo - p, hi + p];
     };
     return { x: pad(Math.min(...xs), Math.max(...xs)), y: pad(Math.min(...ys), Math.max(...ys)) };
-  }, [rows, cityMean]);
+  }, [rows, cityMean, xAxis, meanX]);
+
+  // The off-diagonal quadrant is named after whichever measure is on x.
+  const qLabel = (q: Quadrant) => (q === 'colocation' && xAxis === 'type' ? t('opp.q.type') : t(`opp.q.${q}`));
+  const xName = t(xAxis === 'type' ? 'opp.x.type' : 'opp.x.colo').toLowerCase();
 
   const refLabel = lines === 'city' ? t('opp.ref.cityMean', { city: cityName }) : t('opp.ref.national');
 
@@ -202,18 +217,22 @@ export default function OpportunitySpace({
     const r = rowBy.get(ind);
     const a = attrBy.get(ind);
     if (!r) return null;
-    const q = quadrantOf(r.z_colocation, r.z_flow as number, cx, cy);
+    const q = quadrantOf(xv(r), r.z_flow as number, cx, cy);
     return (
       <>
         <div className="treemap-tooltip-name">{label(ind)}</div>
         <div className="treemap-tooltip-section">{a ? t(`opp.sector.${a.sector}`) : ''}</div>
         <dl className="treemap-tooltip-grid">
           <dt>{t('opp.tip.quadrant')}</dt>
-          <dd>{t(`opp.q.${q}`)}</dd>
+          <dd>{qLabel(q)}</dd>
           <dt>{t('opp.tip.flow')}</dt>
           <dd>{sg(r.z_flow as number)} SD</dd>
           <dt>{t('opp.tip.colo')}</dt>
           <dd>{sg(r.z_colocation)} SD</dd>
+          <dt>{t('opp.tip.type')}</dt>
+          <dd>
+            {t('opp.tip.typeCount', { k: Math.round(r.density_type * 10) })} ({sg(r.z_type)} SD)
+          </dd>
           <dt>RCA</dt>
           <dd>{r.rca.toFixed(2)}</dd>
           <dt>{t('opp.tip.workersHere')}</dt>
@@ -227,6 +246,25 @@ export default function OpportunitySpace({
   return (
     <div>
       <div className="chart-toolbar">
+        <span className="chart-toolbar-control">
+          {t('opp.ctl.x')}
+          <span className="seg-toggle" role="group" aria-label={t('opp.ctl.x')}>
+            {(['colo', 'type'] as XAxis[]).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={v === xAxis ? 'active' : undefined}
+                aria-pressed={v === xAxis}
+                onClick={() => {
+                  setXAxis(v);
+                  setZoom(null);
+                }}
+              >
+                {t(`opp.x.${v}`)}
+              </button>
+            ))}
+          </span>
+        </span>
         <span className="chart-toolbar-control">
           {t('opp.ctl.show')}
           <span className="seg-toggle" role="group" aria-label={t('opp.ctl.show')}>
@@ -308,14 +346,14 @@ export default function OpportunitySpace({
             { corner: 'tl', text: t('opp.q.labour') },
             { corner: 'tr', text: t('opp.q.both') },
             { corner: 'bl', text: t('opp.q.neither') },
-            { corner: 'br', text: t('opp.q.colocation') },
+            { corner: 'br', text: qLabel('colocation') },
           ]}
           domain={domain}
-          xLabel={t('opp.axis.x')}
+          xLabel={t(xAxis === 'type' ? 'opp.axis.xType' : 'opp.axis.x')}
           yLabel={t('opp.axis.y')}
           xFmt={(v) => sg(v, v % 1 === 0 ? 0 : 1)}
           yFmt={(v) => sg(v, v % 1 === 0 ? 0 : 1)}
-          furnitureKey="opp"
+          furnitureKey={`opp-${xAxis}`}
           renderTooltip={tooltip}
           onSelect={setSelected}
           zoom={zoom}
@@ -341,17 +379,22 @@ export default function OpportunitySpace({
           labour: counts.c.labour,
           colocation: counts.c.colocation,
           neither: counts.c.neither,
+          xonly: qLabel('colocation').toLowerCase(),
         })}
         {lines === 'city' &&
           ' ' +
-            t('opp.counts.lines', { city: cityName, x: sg(cityMean.zc), y: sg(cityMean.zf) })}
+            t('opp.counts.lines', { city: cityName, xname: xName, x: sg(meanX), y: sg(cityMean.zf) })}
       </p>
+      {xAxis === 'type' && <p className="opp-note">{t('opp.note.type', { city: cityName })}</p>}
 
       {selected && rowBy.get(selected) && (
         <OpportunityDetail
           ind={selected}
           row={rowBy.get(selected)!}
-          quadrant={quadrantOf(rowBy.get(selected)!.z_colocation, rowBy.get(selected)!.z_flow as number, cx, cy)}
+          quadrant={quadrantOf(xv(rowBy.get(selected)!), rowBy.get(selected)!.z_flow as number, cx, cy)}
+          quadrantLabel={qLabel}
+          xAxis={xAxis}
+          typeNeighbours={typeNeighbours}
           relative={lines === 'city'}
           d24={d24}
           rowBy={rowBy}
@@ -374,12 +417,17 @@ export default function OpportunitySpace({
 // which ones the city is specialised in — their shares sum to the density.
 // Co-location cannot be decomposed that way (it averages over the whole
 // profile), so the right-hand side shows instead the cities the industry is
-// actually found in, which is what the city is being compared against.
+// actually found in, which is what the city is being compared against. With
+// city type on x, the right-hand side is the exact decomposition of that
+// density instead: the city's ten type neighbours and which host the industry.
 
 function OpportunityDetail({
   ind,
   row,
   quadrant,
+  quadrantLabel,
+  xAxis,
+  typeNeighbours,
   relative,
   d24,
   rowBy,
@@ -394,6 +442,9 @@ function OpportunityDetail({
   ind: string;
   row: CityIndustryDensityRow;
   quadrant: Quadrant;
+  quadrantLabel: (q: Quadrant) => string;
+  xAxis: XAxis;
+  typeNeighbours: number[];
   relative: boolean;
   d24: CityIndustryDensityRow[];
   rowBy: Map<string, CityIndustryDensityRow>;
@@ -431,6 +482,19 @@ function OpportunityDetail({
   const hosts = cells.filter((r) => r.rca >= 1).sort((a, b) => b.workers - a.workers);
   const shown = hosts.slice(0, 12);
   const hostRows = shown.some((r) => r.city_id === cityId) ? shown : [...shown, row];
+  const cellBy = new Map(cells.map((r) => [r.city_id, r]));
+  const typeRows = typeNeighbours.map((id) => ({ id, cell: cellBy.get(id) }));
+  const nType = typeRows.filter((r) => (r.cell?.rca ?? 0) >= 1).length;
+  const cityCell = (id: number) => {
+    const raw = cityNames.get(id) ?? String(id);
+    return id === cityId ? (
+      cleanCityName(raw)
+    ) : (
+      <Link className="city-link" to={`/city/${citySlug(raw)}`} onClick={onClose}>
+        {cleanCityName(raw)}
+      </Link>
+    );
+  };
 
   return (
     <div className="opp-modal" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -440,7 +504,7 @@ function OpportunityDetail({
         </button>
         <h4 id="opp-modal-title">{label(ind)}</h4>
         <p className="opp-modal-meta">
-          {cityName} · {t(`opp.q.${quadrant}`)}
+          {cityName} · {quadrantLabel(quadrant)}
           {relative ? ` (${t('opp.modal.vsCityMean')})` : ''} · RCA {row.rca.toFixed(2)} ·{' '}
           {t('opp.modal.workersHere', { n: fmtInt.format(row.workers) })}
           {attr?.wage != null && ` · ${t('opp.modal.wage', { w: fmtInt.format(Math.round(attr.wage)) })}`}
@@ -481,6 +545,38 @@ function OpportunityDetail({
             </table>
             <p className="opp-modal-note">{t('opp.modal.flowNote')}</p>
           </section>
+          {xAxis === 'type' ? (
+          <section>
+            <h5>{t('opp.modal.typeTitle', { k: nType, n: typeRows.length, z: sg(row.z_type) })}</h5>
+            <p className="opp-modal-note">{t('opp.modal.typeLead', { k: nType, n: typeRows.length, city: cityName })}</p>
+            <table className="opp-table">
+              <thead>
+                <tr>
+                  <th />
+                  <th>{t('opp.modal.city')}</th>
+                  <th className="n">RCA</th>
+                  <th className="n">{t('opp.modal.workers')}</th>
+                  <th className="n">{t('opp.modal.cityWorkers')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {typeRows.map(({ id, cell }) => {
+                  const on = (cell?.rca ?? 0) >= 1;
+                  return (
+                    <tr key={id} className={on ? undefined : 'off'}>
+                      <td>{on ? '●' : '○'}</td>
+                      <td>{cityCell(id)}</td>
+                      <td className="n">{(cell?.rca ?? 0).toFixed(2)}</td>
+                      <td className="n">{fmtInt.format(cell?.workers ?? 0)}</td>
+                      <td className="n">{fmtInt.format(byCity.get(id)?.workers ?? 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="opp-modal-note">{t('opp.modal.typeNote')}</p>
+          </section>
+          ) : (
           <section>
             <h5>{t('opp.modal.coloTitle', { d: row.density_colocation.toFixed(3), z: sg(row.z_colocation) })}</h5>
             <p className="opp-modal-note">
@@ -524,6 +620,7 @@ function OpportunityDetail({
             </table>
             <p className="opp-modal-note">{t('opp.modal.coloNote')}</p>
           </section>
+          )}
         </div>
       </div>
     </div>

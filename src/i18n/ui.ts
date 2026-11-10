@@ -697,6 +697,32 @@ export const UI: Record<string, Entry> = {
   'opp.q.labour': { en: 'Labour only', fr: 'Travail seulement' },
   'opp.q.colocation': { en: 'Co-location only', fr: 'Co-localisation seulement' },
   'opp.q.neither': { en: 'Neither', fr: 'Aucun' },
+  'opp.q.type': { en: 'City type only', fr: 'Type de ville seulement' },
+  'opp.ctl.x': { en: 'Horizontal axis', fr: 'Axe horizontal' },
+  'opp.x.colo': { en: 'Co-location', fr: 'Co-localisation' },
+  'opp.x.type': { en: 'City type', fr: 'Type de ville' },
+  'opp.axis.xType': {
+    en: 'City-type density (SD from the national mean) →',
+    fr: 'Densité par type de ville (écarts-types à la moyenne nationale) →',
+  },
+  'opp.tip.type': { en: 'City-type density', fr: 'Densité par type de ville' },
+  'opp.tip.typeCount': { en: '{k} of 10 similar cities', fr: '{k} des 10 villes semblables' },
+  'opp.note.type': {
+    en: 'City-type density places every city by the main dimensions along which Moroccan cities’ industry mixes differ: mostly a single gradient from large, diversified cities to small agricultural towns, plus a few regional types such as the southern fishing coast and the tourist towns. It takes the ten cities most similar to {city} on those dimensions and counts how many are specialised (RCA ≥ 1) in each industry, so it reads as how common the industry is among cities like {city}. It largely agrees with co-location density, because co-location in Morocco mostly reflects the same gradient, but it is less noisy and predicts 2014–2024 entry about as well. Because it counts cities out of ten, the dots fall in columns. An industry high on labour flow and low on city type is one whose related skills {city} already has, but which cities of its kind rarely host.',
+    fr: 'La densité par type de ville situe chaque ville selon les principales dimensions qui distinguent la composition sectorielle des villes marocaines : surtout un gradient unique, des grandes villes diversifiées aux petites villes agricoles, plus quelques types régionaux comme la côte de pêche du Sud et les villes touristiques. Elle retient les dix villes les plus semblables à {city} sur ces dimensions et compte combien sont spécialisées (ACR ≥ 1) dans chaque secteur : elle indique donc à quel point le secteur est courant dans les villes comparables. Elle concorde largement avec la densité de co-localisation, car la co-localisation au Maroc reflète surtout ce même gradient, mais elle est moins bruitée et prédit l’entrée de 2014 à 2024 à peu près aussi bien. Comme elle compte des villes sur dix, les points s’alignent en colonnes. Un secteur haut en flux de travail et bas en type de ville est un secteur dont la ville possède déjà les compétences voisines, mais que les villes de son type accueillent rarement.',
+  },
+  'opp.modal.typeTitle': {
+    en: 'City type: {k} of {n} similar cities ({z} SD)',
+    fr: 'Type de ville : {k} des {n} villes semblables ({z} é.-t.)',
+  },
+  'opp.modal.typeLead': {
+    en: 'Of the {n} cities most similar to {city}, the number specialised (RCA ≥ 1) in this industry is {k}. Similarity is measured on the main dimensions of cities’ industry mixes: chiefly how large and diversified a city is, plus regional types such as the fishing coast and the tourist towns.',
+    fr: 'Parmi les {n} villes les plus semblables à {city}, le nombre de villes spécialisées (ACR ≥ 1) dans ce secteur est de {k}. La ressemblance est mesurée sur les principales dimensions de la composition sectorielle des villes : surtout leur taille et leur diversification, plus des types régionaux comme la côte de pêche et les villes touristiques.',
+  },
+  'opp.modal.typeNote': {
+    en: 'Nearest first. Workers: formal employment in this industry. City workers: all formal workers. The specialised cities (●) make up the density.',
+    fr: 'Les plus proches d’abord. Travailleurs : emploi formel dans ce secteur. Travailleurs de la ville : ensemble des travailleurs formels. Les villes spécialisées (●) forment la densité.',
+  },
   'opp.axis.x': {
     en: 'Co-location density (SD from the national mean) →',
     fr: 'Densité de co-localisation (écarts-types à la moyenne nationale) →',
@@ -709,8 +735,8 @@ export const UI: Record<string, Entry> = {
   'opp.tip.colo': { en: 'Co-location density', fr: 'Densité de co-localisation' },
   'opp.tip.workersHere': { en: 'Workers here', fr: 'Travailleurs ici' },
   'opp.tip.click': {
-    en: 'Click for the neighbours and host cities',
-    fr: 'Cliquer pour les voisins et les villes hôtes',
+    en: 'Click for the neighbours and cities behind both axes',
+    fr: 'Cliquer pour les voisins et les villes derrière les deux axes',
   },
   'opp.legend.present': { en: 'Specialised (RCA ≥ 1)', fr: 'Spécialisée (ACR ≥ 1)' },
   'opp.legend.somewhat': { en: 'Partly present (0.3–1)', fr: 'Partiellement présente (0,3–1)' },
@@ -720,12 +746,12 @@ export const UI: Record<string, Entry> = {
     fr: 'Le salaire journalier national du secteur comparé au salaire journalier médian de la ville. Les points cerclés sont les secteurs où la ville est spécialisée.',
   },
   'opp.counts': {
-    en: '{n} industries shown — both channels {both} · labour only {labour} · co-location only {colocation} · neither {neither}.',
-    fr: '{n} secteurs affichés — les deux canaux {both} · travail seulement {labour} · co-localisation seulement {colocation} · aucun {neither}.',
+    en: '{n} industries shown — both channels {both} · labour only {labour} · {xonly} {colocation} · neither {neither}.',
+    fr: '{n} secteurs affichés — les deux canaux {both} · travail seulement {labour} · {xonly} {colocation} · aucun {neither}.',
   },
   'opp.counts.lines': {
-    en: 'Lines at {city}’s mean: co-location {x} SD, labour flow {y} SD.',
-    fr: 'Lignes à la moyenne de la ville : co-localisation {x} é.-t., flux de travail {y} é.-t.',
+    en: 'Lines at {city}’s mean: {xname} {x} SD, labour flow {y} SD.',
+    fr: 'Lignes à la moyenne de la ville : {xname} {x} é.-t., flux de travail {y} é.-t.',
   },
   'opp.modal.close': { en: 'Close', fr: 'Fermer' },
   'opp.modal.vsCityMean': { en: 'relative to the city mean', fr: 'par rapport à la moyenne de la ville' },

@@ -56,7 +56,7 @@ export const useIndustryComplexity = () =>
 // what the opportunities section uses. 2024 is filtered client-side.
 const DENSITY_COLS = [
   'city_id', 'ind', 'year', 'rca', 'present', 'workers',
-  'density_colocation', 'density_flow', 'z_colocation', 'z_flow',
+  'density_colocation', 'density_flow', 'z_colocation', 'z_flow', 'density_type', 'z_type',
 ];
 const fetchDensity = (p: string) => loadParquet<CityIndustryDensityRow>(p, DENSITY_COLS);
 export const useCityIndustryDensity = () =>
